@@ -1,16 +1,72 @@
 import { injectable } from '@theia/core/shared/inversify';
-import { LocalBrainService, LocalBrainStatus, ModelMode, InstalledModel, ModelModeId } from '../common/protocol';
+import * as path from 'path';
+import * as os from 'os';
+import { LocalBrainService, LocalBrainStatus, ModelMode, InstalledModel, ModelModeId, MachineProfile, LocalBrainModelManifest } from '../common/protocol';
+import { HardwareDetector } from './hardware-detector';
 
 @injectable()
 export class LocalBrainServiceImpl implements LocalBrainService {
-    private activeMode: ModelModeId = 'balanced';
+    private activeMode: ModelModeId = 'auto';
+    private detector = new HardwareDetector();
 
     async getStatus(): Promise<LocalBrainStatus> {
         return {
-            installed: false, // For now, we simulate a mock state where a real runtime isn't installed
-            ready: true, // But our mock is "ready" to respond
-            message: 'Mock runtime active (Real runtime not installed)'
+            runtimeReadiness: 'not-installed',
+            modelReadiness: 'no-models',
+            modelStorageLocation: path.join(os.homedir(), '.localforge', 'models'),
+            message: 'Awaiting runtime installation.'
         };
+    }
+
+    async getMachineProfile(): Promise<MachineProfile> {
+        return await this.detector.detect();
+    }
+
+    async getAvailableManifests(): Promise<LocalBrainModelManifest[]> {
+        return [
+            {
+                id: 'localforge-fast-v1',
+                displayName: 'Fast Coding Brain (Qwen 1.5B)',
+                mode: 'fast',
+                provider: 'localforge',
+                runtime: 'llama.cpp',
+                format: 'gguf',
+                quantization: 'Q4_K_M',
+                estimatedSizeGB: 1.2,
+                minRamGB: 4,
+                recommendedRamGB: 8,
+                contextLength: 4096,
+                notes: 'Placeholder manifest for fast model'
+            },
+            {
+                id: 'localforge-balanced-v1',
+                displayName: 'Balanced Coding Brain (DeepSeek 7B)',
+                mode: 'balanced',
+                provider: 'localforge',
+                runtime: 'llama.cpp',
+                format: 'gguf',
+                quantization: 'Q4_K_M',
+                estimatedSizeGB: 4.5,
+                minRamGB: 8,
+                recommendedRamGB: 16,
+                contextLength: 8192,
+                notes: 'Placeholder manifest for balanced model'
+            },
+            {
+                id: 'localforge-powerful-v1',
+                displayName: 'Powerful Coding Brain (Llama-3 30B)',
+                mode: 'powerful',
+                provider: 'localforge',
+                runtime: 'llama.cpp',
+                format: 'gguf',
+                quantization: 'Q4_K_M',
+                estimatedSizeGB: 18.5,
+                minRamGB: 24,
+                recommendedRamGB: 32,
+                contextLength: 16384,
+                notes: 'Placeholder manifest for powerful model'
+            }
+        ];
     }
 
     async listModes(): Promise<ModelMode[]> {
@@ -23,10 +79,7 @@ export class LocalBrainServiceImpl implements LocalBrainService {
     }
 
     async listInstalledModels(): Promise<InstalledModel[]> {
-        return [
-            { id: 'mock-fast-model', name: 'Fast Coding Brain', description: 'Mock Fast Model placeholder', isMock: true },
-            { id: 'mock-balanced-model', name: 'Balanced Coding Brain', description: 'Mock Balanced Model placeholder', isMock: true }
-        ];
+        return [];
     }
 
     async getActiveMode(): Promise<ModelModeId> {
