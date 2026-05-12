@@ -1,0 +1,22 @@
+{
+  "name": "@localforge/local-brain",
+  "version": "0.0.0",
+  "description": "Local Brain extension for LocalForge",
+  "dependencies": {
+    "@theia/core": "1.71.0"
+  },
+  "devDependencies": {
+    "rimraf": "latest",
+    "typescript": "latest"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/local-brain-frontend-module"
+    }
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rimraf lib"
+  }
+}

@@ -109,7 +109,9 @@
     "dev-packages/*",
     "packages/*",
     "examples/*",
-    "sample-plugins/*/*"
+    "sample-plugins/*/*",
+    "localforge/apps/*",
+    "localforge/packages/*"
   ],
   "theiaPluginsDir": "plugins",
   "theiaPlugins": {

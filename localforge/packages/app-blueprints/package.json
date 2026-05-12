@@ -1,0 +1,22 @@
+{
+  "name": "@localforge/app-blueprints",
+  "version": "0.0.0",
+  "description": "App Blueprints extension for LocalForge",
+  "dependencies": {
+    "@theia/core": "1.71.0"
+  },
+  "devDependencies": {
+    "rimraf": "latest",
+    "typescript": "latest"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/app-blueprints-frontend-module"
+    }
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rimraf lib"
+  }
+}
