@@ -11,7 +11,8 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/local-brain-frontend-module"
+      "frontend": "lib/browser/local-brain-frontend-module",
+      "backend": "lib/node/local-brain-backend-module"
     }
   ],
   "scripts": {

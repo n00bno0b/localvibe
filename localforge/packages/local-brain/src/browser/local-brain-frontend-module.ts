@@ -1,28 +1,29 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
-import { CommandContribution, CommandRegistry } from '@theia/core/lib/common/command';
-import { MessageService } from '@theia/core/lib/common/message-service';
-import { injectable, inject } from '@theia/core/shared/inversify';
-
-export const LocalBrainCommand = {
-    id: 'localforge.localBrain.status',
-    label: 'LocalForge: Local Brain Status'
-};
-
-@injectable()
-export class LocalBrainCommandContribution implements CommandContribution {
-    constructor(
-        @inject(MessageService) private readonly messageService: MessageService
-    ) {}
-
-    registerCommands(registry: CommandRegistry): void {
-        registry.registerCommand(LocalBrainCommand, {
-            execute: () => {
-                this.messageService.info('Local Brain: Not installed yet. Modes: Fast / Balanced / Powerful. Coming soon: built-in local model runtime.');
-            }
-        });
-    }
-}
+import { LocalBrainCommandContribution, LocalBrainViewContribution } from './local-brain-contribution';
+import { CommandContribution } from '@theia/core/lib/common/command';
+import { LocalBrainService, LocalBrainServicePath } from '../common/protocol';
+import { WebSocketConnectionProvider } from '@theia/core/lib/browser';
+import { LocalBrainWidget } from './local-brain-widget';
+import { WidgetFactory, bindViewContribution, FrontendApplicationContribution } from '@theia/core/lib/browser';
 
 export default new ContainerModule(bind => {
+    // Bind the JSON-RPC proxy to the backend service
+    bind(LocalBrainService).toDynamicValue(ctx => {
+        const provider = ctx.container.get(WebSocketConnectionProvider);
+        return provider.createProxy<LocalBrainService>(LocalBrainServicePath);
+    }).inSingletonScope();
+
+    // Bind Widget
+    bind(LocalBrainWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: 'local-brain-widget',
+        createWidget: () => ctx.container.get<LocalBrainWidget>(LocalBrainWidget)
+    })).inSingletonScope();
+
+    // Bind View Contribution
+    bindViewContribution(bind, LocalBrainViewContribution);
+    bind(FrontendApplicationContribution).toService(LocalBrainViewContribution);
+
+    // Bind Commands
     bind(CommandContribution).to(LocalBrainCommandContribution).inSingletonScope();
 });
