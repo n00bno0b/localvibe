@@ -4,11 +4,13 @@ import { BackendApplicationContribution } from '@theia/core/lib/node';
 import {
     ForgeScoutService, ForgeScoutServicePath,
     ProjectGeneratorService, ProjectGeneratorServicePath,
-    PreviewService, PreviewServicePath
+    PreviewService, PreviewServicePath,
+    DependencyDoctorService, DependencyDoctorServicePath
 } from '../common/protocol';
 import { ForgeScoutServiceImpl } from './forge-scout-service-impl';
 import { ProjectGeneratorServiceImpl } from './project-generator-service-impl';
 import { PreviewServiceImpl } from './preview-service-impl';
+import { DependencyDoctorServiceImpl } from './dependency-doctor-service-impl';
 
 export default new ContainerModule(bind => {
     bind(ForgeScoutService).to(ForgeScoutServiceImpl).inSingletonScope();
@@ -32,6 +34,14 @@ export default new ContainerModule(bind => {
     bind(ConnectionHandler).toDynamicValue(ctx =>
         new JsonRpcConnectionHandler(PreviewServicePath, () => {
             return ctx.container.get<PreviewService>(PreviewService);
+        })
+    ).inSingletonScope();
+
+    // Dependency Doctor Service
+    bind(DependencyDoctorService).to(DependencyDoctorServiceImpl).inSingletonScope();
+    bind(ConnectionHandler).toDynamicValue(ctx =>
+        new JsonRpcConnectionHandler(DependencyDoctorServicePath, () => {
+            return ctx.container.get<DependencyDoctorService>(DependencyDoctorService);
         })
     ).inSingletonScope();
 });

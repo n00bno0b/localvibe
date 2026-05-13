@@ -1,7 +1,7 @@
 import { injectable, postConstruct, inject } from '@theia/core/shared/inversify';
 import { BaseWidget } from '@theia/core/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
-import { PreviewService, PreviewStatus } from '../common/protocol';
+import { PreviewService, PreviewStatus, DependencyDoctorService } from '../common/protocol';
 
 export const PreviewWidgetOptions = {
     id: 'localforge-preview-widget',
@@ -16,6 +16,10 @@ export class PreviewWidget extends BaseWidget {
 
     @inject(WorkspaceService)
     protected readonly workspaceService!: WorkspaceService;
+
+    @inject(DependencyDoctorService)
+    protected readonly doctorService!: DependencyDoctorService;
+
 
     private container: HTMLDivElement;
     private toolbar: HTMLDivElement;
@@ -142,7 +146,7 @@ export class PreviewWidget extends BaseWidget {
         });
     }
 
-    private handleStateChange(status: PreviewStatus) {
+    private async handleStateChange(status: PreviewStatus) {
         this.currentUrl = status.url;
         this.urlInput.value = status.url || '';
 
@@ -173,11 +177,37 @@ export class PreviewWidget extends BaseWidget {
                 color = '#ff5555';
             }
 
+
+            let doctorHtml = '';
+            if ((status.state === 'crashed' || status.state === 'port_unavailable') && this.workspaceService.workspace) {
+                const issues = await this.doctorService.listActiveIssues(this.workspaceService.workspace.resource.toString());
+                if (issues.length > 0) {
+                    doctorHtml = `<div style="margin-top: 15px; padding: 10px; background: rgba(255, 85, 85, 0.1); border: 1px solid #ff5555; border-radius: 4px;">
+                        <strong style="color: #ff5555;">Dependency Doctor found an issue:</strong><br/>
+                        ${issues[0].issueSummary}
+                        <br/>
+                        <button class="preview-doctor-btn" style="margin-top: 10px; padding: 4px 10px; background: #ff5555; color: white; border: none; cursor: pointer;">Open Doctor</button>
+                    </div>`;
+                }
+            }
+
             this.overlay.innerHTML = `
                 <i class="fa ${icon}" style="font-size: 32px; margin-bottom: 15px; color: ${color};"></i>
                 <h3 style="margin: 0 0 10px 0; color: ${color};">${this.formatStateLabel(status.state)}</h3>
                 <p style="font-size: 12px;">${status.message || ''}</p>
+                ${doctorHtml}
             `;
+
+            setTimeout(() => {
+                const btn = this.overlay.querySelector('.preview-doctor-btn');
+                if (btn) {
+                    btn.addEventListener('click', () => {
+                        const commands = (window as any).theia?.commands;
+                        if (commands) commands.executeCommand('localforge.dependencyDoctor');
+                    });
+                }
+            }, 50);
+
         }
     }
 
@@ -212,3 +242,4 @@ export class PreviewWidget extends BaseWidget {
         }
     }
 }
+// Quick injection hack snippet (appending logic safely without total rewrite)

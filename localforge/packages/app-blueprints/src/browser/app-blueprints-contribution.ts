@@ -3,6 +3,7 @@ import { CommandContribution, CommandRegistry } from '@theia/core/lib/common/com
 import { AbstractViewContribution } from '@theia/core/lib/browser';
 import { ForgeScoutWidget, ForgeScoutWidgetOptions } from './forge-scout-widget';
 import { PreviewWidget, PreviewWidgetOptions } from './preview-widget';
+import { DependencyDoctorWidget, DependencyDoctorWidgetOptions } from './dependency-doctor-widget';
 
 export const AppBlueprintCommand = {
     id: 'localforge.appBlueprint.new',
@@ -12,6 +13,11 @@ export const AppBlueprintCommand = {
 export const PreviewAppCommand = {
     id: 'localforge.previewApp',
     label: 'LocalForge: Preview App'
+};
+
+export const DependencyDoctorCommand = {
+    id: 'localforge.dependencyDoctor',
+    label: 'LocalForge: Dependency Doctor'
 };
 
 @injectable()
@@ -39,10 +45,23 @@ export class PreviewViewContribution extends AbstractViewContribution<PreviewWid
 }
 
 @injectable()
+export class DependencyDoctorViewContribution extends AbstractViewContribution<DependencyDoctorWidget> {
+    constructor() {
+        super({
+            widgetId: DependencyDoctorWidgetOptions.id,
+            widgetName: DependencyDoctorWidgetOptions.label,
+            defaultWidgetOptions: { area: 'bottom' },
+            toggleCommandId: 'dependencyDoctor:toggle'
+        });
+    }
+}
+
+@injectable()
 export class AppBlueprintCommandContribution implements CommandContribution {
     constructor(
         @inject(ForgeScoutViewContribution) private readonly scoutViewContribution: ForgeScoutViewContribution,
-        @inject(PreviewViewContribution) private readonly previewViewContribution: PreviewViewContribution
+        @inject(PreviewViewContribution) private readonly previewViewContribution: PreviewViewContribution,
+        @inject(DependencyDoctorViewContribution) private readonly doctorViewContribution: DependencyDoctorViewContribution
     ) {}
 
     registerCommands(registry: CommandRegistry): void {
@@ -55,6 +74,12 @@ export class AppBlueprintCommandContribution implements CommandContribution {
         registry.registerCommand(PreviewAppCommand, {
             execute: async () => {
                 await this.previewViewContribution.openView({ activate: true });
+            }
+        });
+
+        registry.registerCommand(DependencyDoctorCommand, {
+            execute: async () => {
+                await this.doctorViewContribution.openView({ activate: true });
             }
         });
     }

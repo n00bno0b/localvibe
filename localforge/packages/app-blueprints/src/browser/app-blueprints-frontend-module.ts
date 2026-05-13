@@ -1,10 +1,16 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { CommandContribution } from '@theia/core/lib/common/command';
 import { WebSocketConnectionProvider, WidgetFactory, bindViewContribution, FrontendApplicationContribution } from '@theia/core/lib/browser';
-import { AppBlueprintCommandContribution, ForgeScoutViewContribution, PreviewViewContribution } from './app-blueprints-contribution';
+import { AppBlueprintCommandContribution, ForgeScoutViewContribution, PreviewViewContribution, DependencyDoctorViewContribution } from './app-blueprints-contribution';
 import { ForgeScoutWidget } from './forge-scout-widget';
 import { PreviewWidget } from './preview-widget';
-import { ForgeScoutService, ForgeScoutServicePath, ProjectGeneratorService, ProjectGeneratorServicePath, PreviewService, PreviewServicePath } from '../common/protocol';
+import { DependencyDoctorWidget } from './dependency-doctor-widget';
+import {
+    ForgeScoutService, ForgeScoutServicePath,
+    ProjectGeneratorService, ProjectGeneratorServicePath,
+    PreviewService, PreviewServicePath,
+    DependencyDoctorService, DependencyDoctorServicePath
+} from '../common/protocol';
 
 export default new ContainerModule(bind => {
     // Bind RPC
@@ -23,6 +29,11 @@ export default new ContainerModule(bind => {
         return provider.createProxy<PreviewService>(PreviewServicePath);
     }).inSingletonScope();
 
+    bind(DependencyDoctorService).toDynamicValue(ctx => {
+        const provider = ctx.container.get(WebSocketConnectionProvider);
+        return provider.createProxy<DependencyDoctorService>(DependencyDoctorServicePath);
+    }).inSingletonScope();
+
     // Bind Widget
     bind(ForgeScoutWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({
@@ -36,12 +47,21 @@ export default new ContainerModule(bind => {
         createWidget: () => ctx.container.get<PreviewWidget>(PreviewWidget)
     })).inSingletonScope();
 
+    bind(DependencyDoctorWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: 'localforge-dependency-doctor-widget',
+        createWidget: () => ctx.container.get<DependencyDoctorWidget>(DependencyDoctorWidget)
+    })).inSingletonScope();
+
     // Bind View
     bindViewContribution(bind, ForgeScoutViewContribution);
     bind(FrontendApplicationContribution).toService(ForgeScoutViewContribution);
 
     bindViewContribution(bind, PreviewViewContribution);
     bind(FrontendApplicationContribution).toService(PreviewViewContribution);
+
+    bindViewContribution(bind, DependencyDoctorViewContribution);
+    bind(FrontendApplicationContribution).toService(DependencyDoctorViewContribution);
 
     // Bind Command
     bind(CommandContribution).to(AppBlueprintCommandContribution).inSingletonScope();

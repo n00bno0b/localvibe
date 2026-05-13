@@ -151,3 +151,55 @@ export interface PreviewService {
     stopPreview(): Promise<void>;
     restartPreview(workspaceRootUri: string): Promise<void>;
 }
+
+// Phase 4: Dependency Doctor Service
+export const DependencyDoctorServicePath = '/services/dependency-doctor';
+
+export type FixActionType = 'install_package' | 'add_env_placeholder' | 'human_action_required' | 'unknown';
+
+export interface FixAction {
+    type: FixActionType;
+    payload?: any;
+    description: string;
+    isSafeAutoFix: boolean;
+}
+
+export interface DetectedIssue {
+    id: string;
+    severity: 'critical' | 'warning' | 'info';
+    rawLog: string;
+    issueSummary: string;
+    explanation: string;
+    likelyCause: string;
+    suggestedFix: string;
+    action: FixAction;
+    confidenceScore: number; // 0.0 to 1.0
+}
+
+export interface DiagnosticReport {
+    issues: DetectedIssue[];
+    timestamp: number;
+}
+
+export interface AnalyzeLogsInput {
+    workspaceRootUri: string;
+    logs: PreviewLogEvent[];
+}
+
+export interface FixResult {
+    success: boolean;
+    issueId: string;
+    message: string;
+    error?: string;
+}
+
+export const DependencyDoctorService = Symbol('DependencyDoctorService');
+
+export interface DependencyDoctorService {
+    readonly onIssuesUpdated: Event<DetectedIssue[]>;
+
+    analyzeLogs(input: AnalyzeLogsInput): Promise<DiagnosticReport>;
+    listActiveIssues(workspaceRootUri: string): Promise<DetectedIssue[]>;
+    applyFix(workspaceRootUri: string, issueId: string): Promise<FixResult>;
+    dismissIssue(workspaceRootUri: string, issueId: string): Promise<void>;
+}
