@@ -87,6 +87,7 @@ export interface BlueprintAnalysis {
 }
 
 export interface ProjectGenerationPlan {
+    templateId: string;
     targetDir: string;
     stack: string[];
     directoriesToCreate: string[];
@@ -324,4 +325,18 @@ export interface ForgeConductorService {
 
     getNextRecommendedActions(workspaceRootUri: string): Promise<RecommendedAction[]>;
     delegateAction(workspaceRootUri: string, delegationId: string): Promise<DelegationResult>;
+}
+
+// Beta Phase 1 additions
+export interface TemplateContext {
+  appName: string;
+  appType: string;
+  pages: string[];
+  components: string[];
+  apiRoutes: { method: string, path: string }[];
+  entities: { name: string, fields: { name: string, type: string }[] }[];
+  integrations: string[];
+  workflows: string[];
+  dependencies: any;
+  devDependencies: any;
 }

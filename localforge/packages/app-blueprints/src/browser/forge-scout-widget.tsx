@@ -253,9 +253,10 @@ export class ForgeScoutWidget extends ReactWidget {
         );
     }
 
+
     private renderStep4() {
         const analysis = this.currentAnalysis;
-        const plan = this.currentPlan;
+        const plan = this.currentPlan as any;
         if (!analysis || !plan) return null;
 
         return (
@@ -266,22 +267,25 @@ export class ForgeScoutWidget extends ReactWidget {
                 <div style={{ marginBottom: '20px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderLeft: '3px solid #007acc' }}>
                     <h3 style={{ margin: '0 0 5px 0', fontSize: '14px', color: 'white' }}>App Architecture</h3>
                     <div style={{ fontSize: '12px', color: '#ccc' }}>
-                        <strong>Recommended Stack:</strong><br/>
-                        {analysis.recommendedStack.join(' + ')}
+                        <strong>Template:</strong>
+                        <select style={{ marginLeft: '10px', background: '#333', color: 'white', border: '1px solid #555', padding: '2px 5px' }}>
+                            <option value="nextjs-starter">Next.js Starter</option>
+                        </select>
+                        <br/>
+                        <strong>Generated from:</strong> docs/app-blueprint.md<br/>
+                        <strong>Output Directory:</strong> <code>/{plan.targetDir}</code><br/>
+                        <strong>Stack:</strong> {analysis.recommendedStack.join(' + ')}
                     </div>
                 </div>
 
                 <div style={{ marginBottom: '20px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderLeft: '3px solid #FF9800' }}>
                     <h3 style={{ margin: '0 0 5px 0', fontSize: '14px', color: 'white' }}>Generation Plan</h3>
                     <div style={{ fontSize: '12px', color: '#ccc' }}>
-                        <strong>Target Directory:</strong> <code>/{plan.targetDir}</code><br/>
-                        <strong>Files to Scaffold:</strong> {plan.filesToCreate.length}<br/><br/>
-                        <strong>Highlights:</strong>
-                        <ul style={{ marginTop: '5px', paddingLeft: '15px' }}>
-                            {analysis.pages.slice(0,3).map(p => <li key={p}>Page: {p}</li>)}
-                            {analysis.components.slice(0,3).map(c => <li key={c}>Comp: {c}</li>)}
-                            {analysis.apiRoutes.slice(0,2).map(a => <li key={a}>API: {a}</li>)}
-                            {(analysis.pages.length > 3 || analysis.components.length > 3) && <li>...and more</li>}
+                        <ul style={{ margin: '5px 0', paddingLeft: '15px' }}>
+                            <li>{analysis.pages.length} Pages</li>
+                            <li>{analysis.components.length} Components</li>
+                            <li>{analysis.apiRoutes.length} API Routes</li>
+                            <li>{analysis.databaseEntities.length} DB Entities</li>
                         </ul>
                     </div>
                 </div>
@@ -309,7 +313,7 @@ export class ForgeScoutWidget extends ReactWidget {
                             this.update();
                         }
                     }}>
-                        {this.isLoading ? 'Scaffolding...' : 'Generate Project Scaffold'}
+                        {this.isLoading ? 'Scaffolding...' : 'Generate Project'}
                     </PrimaryActionButton>
                     <PrimaryActionButton variant="secondary" onClick={() => { this.step = 3; this.update(); }}>Back</PrimaryActionButton>
                 </div>

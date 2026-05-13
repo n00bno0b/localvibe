@@ -1,0 +1,19 @@
+{
+  "id": "nextjs-starter",
+  "displayName": "Next.js Starter",
+  "supportedAppTypes": ["saas", "marketplace", "booking", "ecommerce", "custom"],
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "tailwindcss": "latest",
+    "postcss": "latest",
+    "prisma": "latest"
+  }
+}

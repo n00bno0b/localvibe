@@ -3,14 +3,16 @@
   "version": "0.0.0",
   "description": "App Blueprints extension for LocalForge",
   "dependencies": {
-    "@theia/core": "1.71.0",
     "@localforge/local-brain": "0.0.0",
-    "@theia/workspace": "1.71.0",
     "@localforge/ui": "0.0.0",
+    "@theia/core": "1.71.0",
+    "@theia/workspace": "1.71.0",
+    "ejs": "^3.1.10",
     "react": "latest",
     "react-dom": "latest"
   },
   "devDependencies": {
+    "@types/ejs": "^3.1.5",
     "rimraf": "latest",
     "typescript": "latest"
   },
