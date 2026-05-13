@@ -2,15 +2,23 @@ import { injectable } from '@theia/core/shared/inversify';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { LocalBrainService, LocalBrainStatus, ModelMode, InstalledModel, ModelModeId, MachineProfile, LocalBrainModelManifest, RuntimeStatus, RuntimeLogEntry } from '../common/protocol';
+import { LocalBrainService, LocalBrainStatus, ModelMode, InstalledModel, ModelModeId, MachineProfile, LocalBrainModelManifest, RuntimeStatus, RuntimeLogEntry, DownloadTaskStatus, RuntimeInstallStatus } from '../common/protocol';
 import { HardwareDetector } from './hardware-detector';
 import { LlamaCppRuntimeProvider } from './llama-cpp-provider';
+import { DownloaderService } from './downloader-service';
+import { RuntimeInstallerService } from './runtime-installer-service';
 
 @injectable()
 export class LocalBrainServiceImpl implements LocalBrainService {
     private activeMode: ModelModeId = 'auto';
     private detector = new HardwareDetector();
     private runtimeProvider = new LlamaCppRuntimeProvider();
+    private downloader = new DownloaderService();
+    private runtimeInstaller = new RuntimeInstallerService();
+
+    private get modelsDir() {
+        return path.join(os.homedir(), '.localforge', 'models');
+    }
 
     async getStatus(): Promise<LocalBrainStatus> {
         const rtStatus = await this.runtimeProvider.getRuntimeStatus();
@@ -24,7 +32,7 @@ export class LocalBrainServiceImpl implements LocalBrainService {
         return {
             runtimeReadiness,
             modelReadiness: models.length > 0 ? 'models-available' : 'no-models',
-            modelStorageLocation: path.join(os.homedir(), '.localforge', 'models'),
+            modelStorageLocation: this.modelsDir,
             message: rtStatus.message
         };
     }
@@ -47,6 +55,8 @@ export class LocalBrainServiceImpl implements LocalBrainService {
                 minRamGB: 4,
                 recommendedRamGB: 8,
                 contextLength: 4096,
+                fileName: 'qwen-1.5b.gguf',
+                downloadUrl: 'https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf',
                 notes: 'Placeholder manifest for fast model'
             },
             {
@@ -61,7 +71,11 @@ export class LocalBrainServiceImpl implements LocalBrainService {
                 minRamGB: 8,
                 recommendedRamGB: 16,
                 contextLength: 8192,
-                notes: 'Placeholder manifest for balanced model'
+                fileName: 'deepseek-7b.gguf',
+                notes: 'Placeholder manifest for balanced model',
+                requiresLicenseAcceptance: true,
+                license: 'Meta Llama 3 Community License',
+                homepageUrl: 'https://deepseek.com/'
             },
             {
                 id: 'localforge-powerful-v1',
@@ -75,6 +89,7 @@ export class LocalBrainServiceImpl implements LocalBrainService {
                 minRamGB: 24,
                 recommendedRamGB: 32,
                 contextLength: 16384,
+                fileName: 'llama3-30b.gguf',
                 notes: 'Placeholder manifest for powerful model'
             }
         ];
@@ -90,18 +105,26 @@ export class LocalBrainServiceImpl implements LocalBrainService {
     }
 
     async listInstalledModels(): Promise<InstalledModel[]> {
-        const modelsPath = path.join(os.homedir(), '.localforge', 'models');
-        if (!fs.existsSync(modelsPath)) {
+        if (!fs.existsSync(this.modelsDir)) {
             return [];
         }
         try {
-            const files = fs.readdirSync(modelsPath);
+            const files = fs.readdirSync(this.modelsDir);
             const ggufFiles = files.filter(f => f.endsWith('.gguf'));
-            return ggufFiles.map(f => ({
-                id: f.replace('.gguf', ''),
-                name: f,
-                path: path.join(modelsPath, f)
-            }));
+
+            // Map files to manifests if possible
+            const manifests = await this.getAvailableManifests();
+
+            return ggufFiles.map(f => {
+                const manifest = manifests.find(m => m.fileName === f || m.id + '.gguf' === f);
+                return {
+                    id: manifest ? manifest.id : f.replace('.gguf', ''),
+                    manifestId: manifest ? manifest.id : undefined,
+                    name: manifest ? manifest.displayName : f,
+                    path: path.join(this.modelsDir, f),
+                    isMock: false
+                };
+            });
         } catch (e) {
             return [];
         }
@@ -123,7 +146,6 @@ export class LocalBrainServiceImpl implements LocalBrainService {
 
     async startRuntime(modelId?: string): Promise<RuntimeStatus> {
         const models = await this.listInstalledModels();
-        // If no modelId is provided, attempt to pick the first available
         const targetModel = modelId
             ? models.find(m => m.id === modelId)
             : (models.length > 0 ? models[0] : undefined);
@@ -148,12 +170,62 @@ export class LocalBrainServiceImpl implements LocalBrainService {
         if (modelId) {
             return this.startRuntime(modelId);
         } else {
-            // Attempt to start whatever was previously running or default
             return this.startRuntime();
         }
     }
 
     async getRuntimeLogs(): Promise<RuntimeLogEntry[]> {
         return this.runtimeProvider.getLogs();
+    }
+
+    // Phase 2C additions
+    async downloadModel(modelId: string, acceptLicense?: boolean): Promise<DownloadTaskStatus> {
+        const manifests = await this.getAvailableManifests();
+        const manifest = manifests.find(m => m.id === modelId);
+        if (!manifest) {
+            throw new Error(`Manifest not found for model: ${modelId}`);
+        }
+        return this.downloader.downloadModel(manifest, acceptLicense);
+    }
+
+    async cancelDownload(taskId: string): Promise<void> {
+        return this.downloader.cancel(taskId);
+    }
+
+    async getDownloadStatus(taskId: string): Promise<DownloadTaskStatus> {
+        const task = this.downloader.getTask(taskId);
+        if (!task) throw new Error('Task not found');
+        return task;
+    }
+
+    async listDownloadTasks(): Promise<DownloadTaskStatus[]> {
+        return this.downloader.listTasks();
+    }
+
+    async deleteInstalledModel(modelId: string): Promise<void> {
+        const models = await this.listInstalledModels();
+        const target = models.find(m => m.id === modelId);
+        if (target && target.path && fs.existsSync(target.path)) {
+            fs.unlinkSync(target.path);
+
+            // Stop runtime if this model was running
+            const rtStatus = await this.getRuntimeStatus();
+            if (rtStatus.activeModelId === modelId) {
+                await this.stopRuntime();
+            }
+        }
+    }
+
+    async getRuntimeInstallStatus(): Promise<RuntimeInstallStatus> {
+        return this.runtimeInstaller.getRuntimeInstallStatus();
+    }
+
+    async installRuntime(runtimeId: 'llama.cpp'): Promise<DownloadTaskStatus> {
+        return this.runtimeInstaller.installRuntime(runtimeId);
+    }
+
+    async deleteRuntime(runtimeId: 'llama.cpp'): Promise<void> {
+        await this.stopRuntime();
+        return this.runtimeInstaller.deleteRuntime(runtimeId);
     }
 }

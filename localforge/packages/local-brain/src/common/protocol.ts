@@ -70,8 +70,11 @@ export interface LocalBrainModelManifest {
     recommendedVramGB?: number;
     contextLength: number;
     downloadUrl?: string;
+    fileName?: string;
     sha256?: string;
     license?: string;
+    homepageUrl?: string;
+    requiresLicenseAcceptance?: boolean;
     notes?: string;
 }
 
@@ -81,6 +84,23 @@ export interface InstalledModel {
     path?: string;
     name?: string;
     isMock?: boolean;
+}
+
+export interface DownloadTaskStatus {
+    taskId: string;
+    modelId: string;
+    status: 'pending' | 'downloading' | 'verifying' | 'completed' | 'failed' | 'cancelled';
+    progress: number; // 0 to 100
+    downloadedBytes: number;
+    totalBytes: number;
+    speedBytesPerSec?: number;
+    error?: string;
+}
+
+export interface RuntimeInstallStatus {
+    runtimeId: string;
+    installed: boolean;
+    statusMessage: string;
 }
 
 export const LocalBrainService = Symbol('LocalBrainService');
@@ -100,4 +120,15 @@ export interface LocalBrainService {
     stopRuntime(): Promise<RuntimeStatus>;
     restartRuntime(modelId?: string): Promise<RuntimeStatus>;
     getRuntimeLogs(): Promise<RuntimeLogEntry[]>;
+
+    // Phase 2C additions
+    downloadModel(modelId: string, acceptLicense?: boolean): Promise<DownloadTaskStatus>;
+    cancelDownload(taskId: string): Promise<void>;
+    getDownloadStatus(taskId: string): Promise<DownloadTaskStatus>;
+    listDownloadTasks(): Promise<DownloadTaskStatus[]>;
+    deleteInstalledModel(modelId: string): Promise<void>;
+
+    getRuntimeInstallStatus(): Promise<RuntimeInstallStatus>;
+    installRuntime(runtimeId: 'llama.cpp'): Promise<DownloadTaskStatus>;
+    deleteRuntime(runtimeId: 'llama.cpp'): Promise<void>;
 }
