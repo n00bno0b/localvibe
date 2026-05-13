@@ -5,7 +5,10 @@
   "dependencies": {
     "@theia/core": "1.71.0",
     "@localforge/local-brain": "0.0.0",
-    "@theia/workspace": "1.71.0"
+    "@theia/workspace": "1.71.0",
+    "@localforge/ui": "0.0.0",
+    "react": "latest",
+    "react-dom": "latest"
   },
   "devDependencies": {
     "rimraf": "latest",

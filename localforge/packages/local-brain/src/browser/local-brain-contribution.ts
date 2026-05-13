@@ -60,7 +60,7 @@ export class LocalBrainCommandContribution implements CommandContribution {
                     await this.localBrainService.setActiveMode(selected.value);
                     const widget = await this.viewContribution.widget;
                     if (widget) {
-                        widget.updateContent();
+                        widget.update();
                     }
                 }
             }

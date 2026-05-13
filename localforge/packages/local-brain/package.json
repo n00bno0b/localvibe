@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "description": "Local Brain extension for LocalForge",
   "dependencies": {
-    "@theia/core": "1.71.0"
+    "@theia/core": "1.71.0",
+    "@localforge/ui": "0.0.0",
+    "react": "latest",
+    "react-dom": "latest"
   },
   "devDependencies": {
     "rimraf": "latest",

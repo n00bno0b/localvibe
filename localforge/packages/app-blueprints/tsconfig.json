@@ -3,7 +3,8 @@
   "compilerOptions": {
     "composite": true,
     "outDir": "lib",
-    "rootDir": "src"
+    "rootDir": "src",
+    "jsx": "react"
   },
   "include": [
     "src"
@@ -13,10 +14,13 @@
       "path": "../../../packages/core"
     },
     {
+      "path": "../../../packages/workspace"
+    },
+    {
       "path": "../local-brain"
     },
     {
-      "path": "../../../packages/workspace"
+      "path": "../ui"
     }
   ]
 }

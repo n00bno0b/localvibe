@@ -4,17 +4,11 @@
     "composite": true,
     "outDir": "lib",
     "rootDir": "src",
-    "jsx": "react"
+    "jsx": "react",
+    "moduleResolution": "node",
+    "esModuleInterop": true
   },
   "include": [
     "src"
-  ],
-  "references": [
-    {
-      "path": "../../../packages/core"
-    },
-    {
-      "path": "../ui"
-    }
   ]
 }
