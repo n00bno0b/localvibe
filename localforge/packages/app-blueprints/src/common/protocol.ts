@@ -71,3 +71,44 @@ export interface ForgeScoutService {
     generateAppBlueprint(sessionId: string): Promise<AppBlueprint>;
     saveBlueprintToWorkspace(sessionId: string, workspaceRootUri: string): Promise<SavedBlueprintResult>;
 }
+
+// Phase 3B: Project Generator
+export const ProjectGeneratorServicePath = '/services/project-generator';
+
+export interface BlueprintAnalysis {
+    appType: string;
+    pages: string[];
+    components: string[];
+    apiRoutes: string[];
+    databaseEntities: string[];
+    recommendedStack: string[];
+    rawContent: string;
+}
+
+export interface ProjectGenerationPlan {
+    targetDir: string;
+    stack: string[];
+    directoriesToCreate: string[];
+    filesToCreate: { path: string, description: string }[];
+}
+
+export interface GenerateProjectInput {
+    workspaceRootUri: string;
+    targetDir: string;
+    analysis: BlueprintAnalysis;
+}
+
+export interface ProjectGenerationResult {
+    success: boolean;
+    generatedFilesCount: number;
+    targetDir: string;
+    error?: string;
+}
+
+export const ProjectGeneratorService = Symbol('ProjectGeneratorService');
+
+export interface ProjectGeneratorService {
+    analyzeBlueprint(workspaceRootUri: string): Promise<BlueprintAnalysis>;
+    getGenerationPlan(input: GenerateProjectInput): Promise<ProjectGenerationPlan>;
+    generateProject(input: GenerateProjectInput): Promise<ProjectGenerationResult>;
+}

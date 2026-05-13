@@ -1,7 +1,7 @@
 import { injectable, postConstruct, inject } from '@theia/core/shared/inversify';
 import { BaseWidget, Message } from '@theia/core/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
-import { ForgeScoutService, DiscoverySession } from '../common/protocol';
+import { ForgeScoutService, DiscoverySession, ProjectGeneratorService, BlueprintAnalysis, ProjectGenerationPlan } from '../common/protocol';
 
 export const ForgeScoutWidgetOptions = {
     id: 'forge-scout-widget',
@@ -14,11 +14,16 @@ export class ForgeScoutWidget extends BaseWidget {
     @inject(ForgeScoutService)
     protected readonly forgeScoutService!: ForgeScoutService;
 
+    @inject(ProjectGeneratorService)
+    protected readonly projectGeneratorService!: ProjectGeneratorService;
+
     @inject(WorkspaceService)
     protected readonly workspaceService!: WorkspaceService;
 
     private container: HTMLDivElement;
     private currentSession: DiscoverySession | null = null;
+    private currentAnalysis: BlueprintAnalysis | null = null;
+    private currentPlan: ProjectGenerationPlan | null = null;
     private step: number = 1;
 
     constructor() {
@@ -52,6 +57,8 @@ export class ForgeScoutWidget extends BaseWidget {
         if (this.step === 1) this.renderStep1();
         else if (this.step === 2) this.renderStep2();
         else if (this.step === 3) this.renderStep3();
+        else if (this.step === 4) this.renderStep4();
+        else if (this.step === 5) this.renderStep5();
     }
 
     private renderStep1() {
@@ -94,12 +101,6 @@ export class ForgeScoutWidget extends BaseWidget {
                 this.currentSession = await this.forgeScoutService.createDiscoverySession({
                     idea, goal, researchDepth: 'standard'
                 });
-                await this.forgeScoutService.generateProductOptions(this.currentSession.sessionId);
-
-                // Fetch the updated session state to get the options
-                // In our implementation generateProductOptions mutates internal state but we should arguably pass them.
-                // We'll just assume they are attached, or we can fetch them via a getter. For simplicity,
-                // the generateProductOptions returns the array directly.
                 const opts = await this.forgeScoutService.generateProductOptions(this.currentSession.sessionId);
                 this.currentSession.productOptions = opts;
 
@@ -218,16 +219,138 @@ export class ForgeScoutWidget extends BaseWidget {
 
                 if (res.success) {
                     const resultDiv = this.container.querySelector('#fs-save-result')!;
-                    resultDiv.innerHTML = `Successfully saved ${res.filesSaved.length} files to /docs!<br/>Next: Use these docs to generate your project in Phase 3B.`;
+                    resultDiv.innerHTML = `Successfully saved files to /docs!<br/><br/>
+                    <button id="fs-next-gen-btn" style="padding: 6px 15px; background: #4CAF50; color: white; border: none; cursor: pointer;">Proceed to Project Generation</button>`;
+
+                    this.container.querySelector('#fs-next-gen-btn')!.addEventListener('click', async () => {
+                        try {
+                            this.container.innerHTML = `<h2 style="margin-top: 0;">Analyzing Blueprint...</h2>`;
+                            this.currentAnalysis = await this.projectGeneratorService.analyzeBlueprint(rootUri);
+                            this.currentPlan = await this.projectGeneratorService.getGenerationPlan({
+                                workspaceRootUri: rootUri,
+                                targetDir: 'apps/web',
+                                analysis: this.currentAnalysis
+                            });
+                            this.step = 4;
+                            this.render();
+                        } catch (analyzeErr) {
+                            alert(String(analyzeErr));
+                            this.step = 3;
+                            this.render();
+                        }
+                    });
+
                 } else {
                     alert(`Failed to save: ${res.error}`);
+                    btn.disabled = false;
+                    btn.innerText = 'Save to Workspace';
                 }
             } catch (err) {
                 alert(`Error: ${String(err)}`);
-            } finally {
                 btn.disabled = false;
                 btn.innerText = 'Save to Workspace';
             }
+        });
+    }
+
+    private renderStep4() {
+        if (!this.currentAnalysis || !this.currentPlan) return;
+
+        const analysis = this.currentAnalysis;
+        const plan = this.currentPlan;
+
+        this.container.innerHTML = `
+            <h2 style="margin-top: 0;">Project Generator</h2>
+            <p style="color: #ccc; font-size: 12px;">Review the generation plan based on your App Blueprint.</p>
+
+            <div style="margin-bottom: 20px; padding: 10px; background: rgba(0,0,0,0.2); border-left: 3px solid #007acc;">
+                <h3 style="margin: 0 0 5px 0; font-size: 14px;">App Architecture</h3>
+                <div style="font-size: 12px; color: #ccc;">
+                    <strong>Recommended Stack:</strong><br/>
+                    ${analysis.recommendedStack.join(' + ')}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px; padding: 10px; background: rgba(0,0,0,0.2); border-left: 3px solid #FF9800;">
+                <h3 style="margin: 0 0 5px 0; font-size: 14px;">Generation Plan</h3>
+                <div style="font-size: 12px; color: #ccc;">
+                    <strong>Target Directory:</strong> <code>/${plan.targetDir}</code><br/>
+                    <strong>Files to Scaffold:</strong> ${plan.filesToCreate.length}<br/><br/>
+                    <strong>Highlights:</strong>
+                    <ul style="margin-top: 5px; padding-left: 15px;">
+                        ${analysis.pages.slice(0,3).map(p => `<li>Page: ${p}</li>`).join('')}
+                        ${analysis.components.slice(0,3).map(c => `<li>Comp: ${c}</li>`).join('')}
+                        ${analysis.apiRoutes.slice(0,2).map(a => `<li>API: ${a}</li>`).join('')}
+                        ${(analysis.pages.length > 3 || analysis.components.length > 3) ? '<li>...and more</li>' : ''}
+                    </ul>
+                </div>
+            </div>
+
+            <button id="fs-gen-project-btn" style="padding: 6px 15px; background: #4CAF50; color: white; border: none; cursor: pointer;">Generate Project Scaffold</button>
+            <button id="fs-back-plan-btn" style="margin-left: 10px; padding: 6px 15px; background: #555; color: white; border: none; cursor: pointer;">Back</button>
+        `;
+
+        this.container.querySelector('#fs-back-plan-btn')!.addEventListener('click', () => {
+            this.step = 3;
+            this.render();
+        });
+
+        this.container.querySelector('#fs-gen-project-btn')!.addEventListener('click', async () => {
+            const btn = this.container.querySelector('#fs-gen-project-btn') as HTMLButtonElement;
+            btn.disabled = true;
+            btn.innerText = 'Scaffolding files...';
+
+            try {
+                const rootUri = this.workspaceService.workspace!.resource.toString();
+                const result = await this.projectGeneratorService.generateProject({
+                    workspaceRootUri: rootUri,
+                    targetDir: plan.targetDir,
+                    analysis: analysis
+                });
+
+                if (result.success) {
+                    this.step = 5;
+                    this.render();
+                } else {
+                    alert(`Generation failed: ${result.error}`);
+                    btn.disabled = false;
+                    btn.innerText = 'Generate Project Scaffold';
+                }
+            } catch (err) {
+                alert(`Error: ${String(err)}`);
+                btn.disabled = false;
+                btn.innerText = 'Generate Project Scaffold';
+            }
+        });
+    }
+
+    private renderStep5() {
+        this.container.innerHTML = `
+            <h2 style="margin-top: 0; color: #4CAF50;">Project Generated!</h2>
+
+            <p style="font-size: 12px; color: #ccc; margin-bottom: 20px;">
+                Your Next.js starter application has been successfully scaffolded inside <code>/apps/web</code> based on your blueprints.
+            </p>
+
+            <div style="margin-bottom: 20px; padding: 15px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;">
+                <h3 style="margin: 0 0 10px 0; font-size: 14px;">Next Steps</h3>
+                <ol style="font-size: 12px; color: #ccc; padding-left: 20px; margin: 0;">
+                    <li style="margin-bottom: 5px;">Open a new terminal terminal</li>
+                    <li style="margin-bottom: 5px;">Run <code>cd apps/web && pnpm install</code></li>
+                    <li style="margin-bottom: 5px;">Run <code>npm run dev</code> to start the development server</li>
+                    <li>Wait for Phase 3C (Live Preview) to view the app directly in the IDE.</li>
+                </ol>
+            </div>
+
+            <button id="fs-finish-btn" style="padding: 6px 15px; background: #007acc; color: white; border: none; cursor: pointer;">Done</button>
+        `;
+
+        this.container.querySelector('#fs-finish-btn')!.addEventListener('click', () => {
+            this.currentSession = null;
+            this.currentAnalysis = null;
+            this.currentPlan = null;
+            this.step = 1;
+            this.render();
         });
     }
 }

@@ -3,7 +3,7 @@ import { CommandContribution } from '@theia/core/lib/common/command';
 import { WebSocketConnectionProvider, WidgetFactory, bindViewContribution, FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { AppBlueprintCommandContribution, ForgeScoutViewContribution } from './app-blueprints-contribution';
 import { ForgeScoutWidget } from './forge-scout-widget';
-import { ForgeScoutService, ForgeScoutServicePath } from '../common/protocol';
+import { ForgeScoutService, ForgeScoutServicePath, ProjectGeneratorService, ProjectGeneratorServicePath } from '../common/protocol';
 
 export const AppBlueprintCommand = {
     id: 'localforge.appBlueprint.new',
@@ -15,6 +15,11 @@ export default new ContainerModule(bind => {
     bind(ForgeScoutService).toDynamicValue(ctx => {
         const provider = ctx.container.get(WebSocketConnectionProvider);
         return provider.createProxy<ForgeScoutService>(ForgeScoutServicePath);
+    }).inSingletonScope();
+
+    bind(ProjectGeneratorService).toDynamicValue(ctx => {
+        const provider = ctx.container.get(WebSocketConnectionProvider);
+        return provider.createProxy<ProjectGeneratorService>(ProjectGeneratorServicePath);
     }).inSingletonScope();
 
     // Bind Widget
