@@ -2,6 +2,8 @@ import { injectable } from '@theia/core/shared/inversify';
 import * as fs from 'fs';
 import * as path from 'path';
 import { URI } from '@theia/core';
+import { inject } from '@theia/core/shared/inversify';
+import { ForgeConductorService } from '../common/protocol';
 import {
     ProjectGeneratorService,
     BlueprintAnalysis,
@@ -12,6 +14,8 @@ import {
 
 @injectable()
 export class ProjectGeneratorServiceImpl implements ProjectGeneratorService {
+    @inject(ForgeConductorService)
+    protected readonly conductorService!: ForgeConductorService;
 
     public async analyzeBlueprint(workspaceRootUriStr: string): Promise<BlueprintAnalysis> {
         const rootUri = new URI(workspaceRootUriStr);
@@ -251,6 +255,7 @@ Last completed task: Generated Next.js project scaffold
 Next recommended task: Install dependencies and run live preview
             `);
 
+            await this.conductorService.updateProjectState({ workspaceRootUri: input.workspaceRootUri, phase: 'project-generation' });
             return {
                 success: true,
                 generatedFilesCount: filesCreated,

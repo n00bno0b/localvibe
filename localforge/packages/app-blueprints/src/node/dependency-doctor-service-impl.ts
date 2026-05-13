@@ -19,7 +19,7 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
     private readonly onIssuesUpdatedEmitter = new Emitter<DetectedIssue[]>();
     public readonly onIssuesUpdated: Event<DetectedIssue[]> = this.onIssuesUpdatedEmitter.event;
 
-    private activeIssues = new Map<string, DetectedIssue[]>(); // mapped by workspace path
+    private activeIssues = new Map<string, DetectedIssue[]>();
 
     @inject(PreviewService)
     protected readonly previewService!: PreviewService;
@@ -28,18 +28,16 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
     protected init() {
         this.previewService.onLog(async log => {
             if (log.type === 'stderr' || log.type === 'stdout') {
-                this.processLogLine(log.message);
+                await this.processLogLine(log.message);
             }
         });
     }
 
-    private processLogLine(line: string) {
+    private async processLogLine(line: string) {
         const defaultWorkspacePath = 'default';
         let newIssue: DetectedIssue | undefined;
 
         // Rule 1: Missing Module
-        // We use a stricter regex to only capture typical npm package name characters
-        // to prevent capturing shell injection payloads if present in logs.
         const moduleMatch = line.match(/Module not found: Can't resolve '([@a-zA-Z0-9_\-\.]+)'/);
         if (moduleMatch) {
             const pkg = moduleMatch[1];
@@ -85,7 +83,6 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
 
         // Fallback: Local Brain interpretation stub
         if (!newIssue && (line.toLowerCase().includes('error:') || line.toLowerCase().includes('exception'))) {
-            // Check if we haven't seen this generic error to prevent spamming
             const existing = this.activeIssues.get(defaultWorkspacePath) || [];
             if (!existing.find(e => e.rawLog === line)) {
                 newIssue = {
@@ -112,49 +109,13 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
                 existing.push(newIssue);
                 this.activeIssues.set(defaultWorkspacePath, existing);
                 this.onIssuesUpdatedEmitter.fire(existing);
-                this.writeHumanActionIfRequired(newIssue);
-                this.updateProjectState();
             }
-        }
-    }
-
-    private writeHumanActionIfRequired(issue: DetectedIssue) {
-        if (issue.action.type === 'human_action_required') {
-            const p = path.join(process.cwd(), '.localforge', 'human-actions.md');
-            try {
-                if (!fs.existsSync(path.dirname(p))) fs.mkdirSync(path.dirname(p), { recursive: true });
-                fs.appendFileSync(p, `\n- **Human Required:** ${issue.suggestedFix} (Reason: ${issue.likelyCause})\n`);
-            } catch (e) {
-                console.error("Failed to write to human-actions.md", e);
-            }
-        }
-    }
-
-    private updateProjectState() {
-        const issues = this.activeIssues.get('default') || [];
-        const p = path.join(process.cwd(), '.localforge', 'project-state.json');
-
-        try {
-            if (!fs.existsSync(path.dirname(p))) fs.mkdirSync(path.dirname(p), { recursive: true });
-            let state: any = { phase: 'mvp-build', knownRisks: [], nextRecommendedAction: 'Run live preview' };
-            if (fs.existsSync(p)) {
-                state = JSON.parse(fs.readFileSync(p, 'utf8'));
-            }
-
-            state.knownRisks = issues.map(i => i.issueSummary);
-            if (issues.length > 0) {
-                state.nextRecommendedAction = 'Review Dependency Doctor issues and apply fixes.';
-            }
-
-            fs.writeFileSync(p, JSON.stringify(state, null, 2), 'utf8');
-        } catch (e) {
-            console.error("Failed to update project-state.json", e);
         }
     }
 
     public async analyzeLogs(input: AnalyzeLogsInput): Promise<DiagnosticReport> {
         for (const log of input.logs) {
-            this.processLogLine(log.message);
+            await this.processLogLine(log.message);
         }
         const issues = this.activeIssues.get('default') || [];
         return {
@@ -182,7 +143,6 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
             if (issue.action.type === 'install_package') {
                 const pkg = issue.action.payload.packageName;
 
-                // Sanitize the package name strongly to prevent any form of command injection
                 if (!/^[a-zA-Z0-9_\-\.\@]+$/.test(pkg)) {
                     return { success: false, issueId, message: 'Fix failed', error: 'Invalid package name format.' };
                 }
@@ -190,7 +150,6 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
                 const pkgManager = fs.existsSync(path.join(appDir, 'pnpm-lock.yaml')) ? 'pnpm' : 'npm';
 
                 await new Promise<void>((resolve, reject) => {
-                    // shell: false is safer
                     const proc = spawn(pkgManager, ['install', pkg], { cwd: appDir, shell: false });
                     proc.on('close', (code) => {
                         if (code === 0) resolve();
@@ -203,7 +162,6 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
 
                 this.activeIssues.set('default', issues.filter(i => i.id !== issueId));
                 this.onIssuesUpdatedEmitter.fire(this.activeIssues.get('default')!);
-                this.updateProjectState();
 
                 return { success: true, issueId, message: `Successfully installed ${pkg}` };
             }
@@ -211,7 +169,6 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
             if (issue.action.type === 'human_action_required') {
                 this.activeIssues.set('default', issues.filter(i => i.id !== issueId));
                 this.onIssuesUpdatedEmitter.fire(this.activeIssues.get('default')!);
-                this.updateProjectState();
                 return { success: true, issueId, message: 'Acknowledged human requirement.' };
             }
 
@@ -226,6 +183,5 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
         const issues = this.activeIssues.get('default') || [];
         this.activeIssues.set('default', issues.filter(i => i.id !== issueId));
         this.onIssuesUpdatedEmitter.fire(this.activeIssues.get('default')!);
-        this.updateProjectState();
     }
 }

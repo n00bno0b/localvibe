@@ -5,6 +5,7 @@ import { ForgeScoutWidget, ForgeScoutWidgetOptions } from './forge-scout-widget'
 import { PreviewWidget, PreviewWidgetOptions } from './preview-widget';
 import { DependencyDoctorWidget, DependencyDoctorWidgetOptions } from './dependency-doctor-widget';
 import { CodegenDiffWidget, CodegenDiffWidgetOptions } from './codegen-diff-widget';
+import { ForgeConductorWidget, ForgeConductorWidgetOptions } from './forge-conductor-widget';
 
 export const AppBlueprintCommand = {
     id: 'localforge.appBlueprint.new',
@@ -24,6 +25,11 @@ export const DependencyDoctorCommand = {
 export const CodegenDiffCommand = {
     id: 'localforge.codegenDiff',
     label: 'LocalForge: Code Diff Approval'
+};
+
+export const ForgeConductorCommand = {
+    id: 'localforge.forgeConductor',
+    label: 'LocalForge: Forge Conductor Dashboard'
 };
 
 @injectable()
@@ -75,12 +81,25 @@ export class CodegenDiffViewContribution extends AbstractViewContribution<Codege
 }
 
 @injectable()
+export class ForgeConductorViewContribution extends AbstractViewContribution<ForgeConductorWidget> {
+    constructor() {
+        super({
+            widgetId: ForgeConductorWidgetOptions.id,
+            widgetName: ForgeConductorWidgetOptions.label,
+            defaultWidgetOptions: { area: 'left' },
+            toggleCommandId: 'forgeConductor:toggle'
+        });
+    }
+}
+
+@injectable()
 export class AppBlueprintCommandContribution implements CommandContribution {
     constructor(
         @inject(ForgeScoutViewContribution) private readonly scoutViewContribution: ForgeScoutViewContribution,
         @inject(PreviewViewContribution) private readonly previewViewContribution: PreviewViewContribution,
         @inject(DependencyDoctorViewContribution) private readonly doctorViewContribution: DependencyDoctorViewContribution,
-        @inject(CodegenDiffViewContribution) private readonly diffViewContribution: CodegenDiffViewContribution
+        @inject(CodegenDiffViewContribution) private readonly diffViewContribution: CodegenDiffViewContribution,
+        @inject(ForgeConductorViewContribution) private readonly conductorViewContribution: ForgeConductorViewContribution
     ) {}
 
     registerCommands(registry: CommandRegistry): void {
@@ -105,6 +124,12 @@ export class AppBlueprintCommandContribution implements CommandContribution {
         registry.registerCommand(CodegenDiffCommand, {
             execute: async () => {
                 await this.diffViewContribution.openView({ activate: true });
+            }
+        });
+
+        registry.registerCommand(ForgeConductorCommand, {
+            execute: async () => {
+                await this.conductorViewContribution.openView({ activate: true });
             }
         });
     }

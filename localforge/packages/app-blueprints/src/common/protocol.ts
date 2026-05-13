@@ -203,3 +203,125 @@ export interface DependencyDoctorService {
     applyFix(workspaceRootUri: string, issueId: string): Promise<FixResult>;
     dismissIssue(workspaceRootUri: string, issueId: string): Promise<void>;
 }
+
+
+// Alpha Phase: Forge Conductor
+export const ForgeConductorServicePath = '/services/forge-conductor';
+
+export type ProjectPhase =
+  | 'idea'
+  | 'validation'
+  | 'business-blueprint'
+  | 'app-blueprint'
+  | 'project-generation'
+  | 'live-preview'
+  | 'mvp-build'
+  | 'dependency-fix'
+  | 'security-pass'
+  | 'launch-prep'
+  | 'deployment'
+  | 'feedback'
+  | 'iteration';
+
+export type TaskOwner = 'human' | 'forge-conductor' | 'forge-scout' | 'codegen' | 'dependency-doctor' | 'project-generator' | 'live-preview' | 'forgeops';
+
+export interface ProjectTask {
+  id: string;
+  title: string;
+  phase: ProjectPhase;
+  status: 'not_started' | 'in_progress' | 'blocked' | 'failed' | 'done';
+  owner: TaskOwner;
+  dependencies: string[];
+  riskLevel: 'low' | 'medium' | 'high';
+  requiresApproval: boolean;
+  completedAt?: number;
+}
+
+export interface ProjectDecision {
+    id: string;
+    title: string;
+    description: string;
+    madeBy: TaskOwner;
+    timestamp: number;
+}
+
+export interface ProjectRisk {
+    id: string;
+    description: string;
+    severity: 'low' | 'medium' | 'high';
+    mitigationPlan?: string;
+    status: 'open' | 'mitigated' | 'accepted';
+}
+
+export interface HumanAction {
+    id: string;
+    description: string;
+    reason: string;
+    status: 'pending' | 'completed';
+    createdAt: number;
+}
+
+export interface UserPreferences {
+    preferredStack: string[];
+    routingMode: string;
+    approvalStyle: 'strict' | 'lenient';
+    explanationDepth: 'quick' | 'standard' | 'deep';
+}
+
+export interface ProjectState {
+    phase: ProjectPhase;
+    health: 'healthy' | 'warning' | 'critical';
+    lastCompletedTaskId?: string;
+}
+
+export interface ProjectStateUpdate {
+    workspaceRootUri: string;
+    phase?: ProjectPhase;
+    health?: 'healthy' | 'warning' | 'critical';
+    lastCompletedTaskId?: string;
+}
+
+export interface TaskEvent {
+    workspaceRootUri: string;
+    task: ProjectTask;
+}
+
+export interface RecommendedAction {
+    id: string;
+    title: string;
+    description: string;
+    delegationId?: string; // ID used by delegateAction to execute
+    isHumanAction?: boolean;
+}
+
+export interface DelegationResult {
+    success: boolean;
+    message: string;
+}
+
+export const ForgeConductorService = Symbol('ForgeConductorService');
+
+export interface ForgeConductorService {
+    readonly onStateUpdated: Event<void>;
+
+    getProjectState(workspaceRootUri: string): Promise<ProjectState>;
+    updateProjectState(update: ProjectStateUpdate): Promise<ProjectState>;
+
+    getTasks(workspaceRootUri: string): Promise<ProjectTask[]>;
+    recordTaskEvent(event: TaskEvent): Promise<void>;
+
+    getDecisions(workspaceRootUri: string): Promise<ProjectDecision[]>;
+    recordDecision(workspaceRootUri: string, decision: ProjectDecision): Promise<void>;
+
+    getRisks(workspaceRootUri: string): Promise<ProjectRisk[]>;
+    recordRisk(workspaceRootUri: string, risk: ProjectRisk): Promise<void>;
+
+    getHumanActions(workspaceRootUri: string): Promise<HumanAction[]>;
+    addHumanAction(workspaceRootUri: string, action: HumanAction): Promise<void>;
+    resolveHumanAction(workspaceRootUri: string, actionId: string): Promise<void>;
+
+    getPreferences(workspaceRootUri: string): Promise<UserPreferences>;
+
+    getNextRecommendedActions(workspaceRootUri: string): Promise<RecommendedAction[]>;
+    delegateAction(workspaceRootUri: string, delegationId: string): Promise<DelegationResult>;
+}

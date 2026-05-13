@@ -7,6 +7,7 @@ import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import { PreviewService, PreviewStatus, PreviewState, PreviewLogEvent } from '../common/protocol';
 
+
 @injectable()
 export class PreviewServiceImpl implements PreviewService, BackendApplicationContribution {
 
@@ -22,6 +23,8 @@ export class PreviewServiceImpl implements PreviewService, BackendApplicationCon
 
     private currentProcess: ChildProcess | undefined;
     private isRestarting = false;
+
+
 
     // Hook into IDE shutdown to clean up detached processes
     onStop(): void {
@@ -107,6 +110,7 @@ export class PreviewServiceImpl implements PreviewService, BackendApplicationCon
                     if (match) {
                         const detectedUrl = match[0];
                         this.updateState('running', `Server running at ${detectedUrl}`, detectedUrl);
+                        // State updated by events({ workspaceRootUri: new URI(process.cwd()).toString(), phase: 'live-preview' });
                         this.emitLog('system', `Detected dev server URL: ${detectedUrl}`);
                     }
                 }

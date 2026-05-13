@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { URI } from '@theia/core';
 import { LocalBrainService, LocalBrainChatService } from '../../../local-brain/src/common/protocol';
+import { ForgeConductorService } from '../common/protocol';
 import {
     ForgeScoutService,
     DiscoveryInput,
@@ -25,6 +26,9 @@ export class ForgeScoutServiceImpl implements ForgeScoutService {
 
     @inject(LocalBrainService)
     protected readonly localBrainService!: LocalBrainService;
+
+    @inject(ForgeConductorService)
+    protected readonly conductorService!: ForgeConductorService;
 
     private sessions = new Map<string, DiscoverySession>();
 
@@ -251,6 +255,7 @@ ${ab.workflows.map(w => `- ${w}`).join('\n')}
 `;
             writeMd('app-blueprint.md', abContent);
 
+            await this.conductorService.updateProjectState({ workspaceRootUri: workspaceRootUriStr, phase: 'app-blueprint' });
             return { success: true, filesSaved: savedFiles };
 
         } catch (e) {
