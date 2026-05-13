@@ -150,22 +150,52 @@ export class LocalBrainWidget extends BaseWidget {
                 </div>
             `}).join('');
 
+
+            // Phase 2E: Runtime Install Logic
+            const runtimes = await this.localBrainService.listAvailableRuntimes();
+            const recRuntime = await this.localBrainService.getRecommendedRuntime();
+
+            // Find active runtime download task if any
+            const rtTask = downloads.find(d => runtimes.some(r => r.id === d.modelId));
+
             let installRtHtml = '';
             if (!rtInstallStatus.installed) {
-                installRtHtml = `
-                    <div style="margin-top: 10px; background: rgba(255, 152, 0, 0.1); padding: 10px; border: 1px solid rgba(255, 152, 0, 0.3); border-radius: 4px;">
-                        <div style="color: #FF9800; margin-bottom: 5px;"><strong>Action Required:</strong> ${rtInstallStatus.statusMessage}</div>
-                        <button id="lb-install-rt" style="padding: 4px 10px;">Install Local Brain Runtime</button>
-                    </div>
-                `;
+                if (rtTask && (rtTask.status === 'downloading' || rtTask.status === 'pending' || rtTask.status === 'verifying')) {
+                    installRtHtml = `
+                        <div style="margin-top: 10px; background: rgba(0, 150, 255, 0.1); padding: 10px; border: 1px solid rgba(0, 150, 255, 0.3); border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <strong>Installing Runtime...</strong>
+                                <button class="lb-cancel-dl" data-taskid="${rtTask.taskId}" style="font-size: 10px; padding: 2px 5px;">Cancel</button>
+                            </div>
+                            <div style="margin-top: 5px;">Status: ${rtTask.status}</div>
+                            <div style="width: 100%; background: #333; height: 10px; border-radius: 5px; margin-top: 5px; overflow: hidden;">
+                                <div style="width: ${rtTask.progress}%; background: #4CAF50; height: 100%;"></div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const recHtml = recRuntime ? `Recommended: <strong>${recRuntime.displayName}</strong> (${recRuntime.version})` : 'No recommended runtime found.';
+                    const rtIdToInstall = recRuntime ? recRuntime.id : 'llama-cpp-test-fixture';
+                    installRtHtml = `
+                        <div style="margin-top: 10px; background: rgba(255, 152, 0, 0.1); padding: 10px; border: 1px solid rgba(255, 152, 0, 0.3); border-radius: 4px;">
+                            <div style="color: #FF9800; margin-bottom: 5px;"><strong>Action Required:</strong> ${rtInstallStatus.statusMessage}</div>
+                            <div style="font-size: 11px; margin-bottom: 10px; color: #ccc;">${recHtml}</div>
+                            <button id="lb-install-rt" data-rtid="${rtIdToInstall}" style="padding: 4px 10px; background: #007acc; color: white; border: none; cursor: pointer;">Install Recommended Runtime</button>
+                        </div>
+                    `;
+                }
             } else {
                  installRtHtml = `
-                    <div style="margin-top: 10px; font-size: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="margin-top: 10px; font-size: 10px; display: flex; justify-content: space-between; align-items: center; background: rgba(76, 175, 80, 0.1); padding: 5px; border-radius: 4px;">
                         <span style="color: #4CAF50;">Runtime is installed.</span>
-                        <button id="lb-delete-rt" style="font-size: 10px; padding: 2px 5px; color: #ff5555;">Delete Runtime</button>
+                        <div>
+                            <button id="lb-open-rt" style="font-size: 10px; padding: 2px 5px; margin-right: 5px;">Open Folder</button>
+                            <button id="lb-delete-rt" style="font-size: 10px; padding: 2px 5px; color: #ff5555;">Delete Runtime</button>
+                        </div>
                     </div>
                 `;
             }
+
 
             this.container.innerHTML = `
                 <h2 style="margin-top: 0; display: flex; justify-content: space-between; align-items: center;">
@@ -237,14 +267,20 @@ export class LocalBrainWidget extends BaseWidget {
                     alert(`Failed to restart: ${String(err)}`);
                 }
             });
-            attach('#lb-install-rt', async () => {
+            attach('#lb-install-rt', async (el) => {
+                const rtId = el.getAttribute('data-rtid');
+                if (!rtId) return;
                 try {
-                    const res = await this.localBrainService.installRuntime('llama.cpp');
+                    const res = await this.localBrainService.installRuntime(rtId);
                     if (res.status === 'failed') alert(res.error);
                     this.updateContent();
                 } catch (err) {
                     alert(`Failed to install runtime: ${String(err)}`);
                 }
+            });
+            attach('#lb-open-rt', () => {
+                 // In a real app we'd dispatch a command to open the ~/.localforge/runtimes folder in the file explorer.
+                 alert('Runtime is located in ~/.localforge/runtimes/');
             });
             attach('#lb-delete-rt', async () => {
                 if (confirm('Are you sure you want to delete the local runtime binary?')) {

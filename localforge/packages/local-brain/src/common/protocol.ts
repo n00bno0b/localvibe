@@ -129,9 +129,12 @@ export interface LocalBrainService {
     listDownloadTasks(): Promise<DownloadTaskStatus[]>;
     deleteInstalledModel(modelId: string): Promise<void>;
 
-    getRuntimeInstallStatus(): Promise<RuntimeInstallStatus>;
-    installRuntime(runtimeId: 'llama.cpp'): Promise<DownloadTaskStatus>;
-    deleteRuntime(runtimeId: 'llama.cpp'): Promise<void>;
+    getRuntimeInstallStatus(runtimeId?: string): Promise<RuntimeInstallStatus>;
+    installRuntime(runtimeId: string): Promise<DownloadTaskStatus>;
+    deleteRuntime(runtimeId: string): Promise<void>;
+    listAvailableRuntimes(): Promise<RuntimeManifest[]>;
+    getRecommendedRuntime(): Promise<RuntimeManifest | undefined>;
+    cancelRuntimeInstall(taskId: string): Promise<void>;
 }
 
 // Phase 2D: Chat Interfaces
@@ -267,4 +270,34 @@ export interface AIProviderRegistry {
 
     // Core chat interface used by Codegen
     chat(request: LocalBrainChatRequest, providerId?: string): Promise<string>;
+}
+
+// Alpha Phase 2: Runtime Manifests
+export interface RuntimeManifest {
+    id: string;
+    runtime: 'llama.cpp';
+    displayName: string;
+    version: string;
+    platform: 'linux' | 'darwin' | 'win32';
+    arch: 'x64' | 'arm64';
+    acceleration: 'cpu' | 'cuda' | 'metal' | 'vulkan';
+    binaryName: string;
+    downloadUrl: string;
+    archiveType: 'zip' | 'tar.gz';
+    sha256: string;
+    sizeBytes?: number;
+    license?: string;
+    source?: string;
+    notes?: string;
+}
+
+export const RuntimeInstallerService = Symbol('RuntimeInstallerService');
+
+export interface RuntimeInstallerService {
+    listAvailableRuntimes(): Promise<RuntimeManifest[]>;
+    getRecommendedRuntime(profile: MachineProfile): Promise<RuntimeManifest | undefined>;
+    getRuntimeInstallStatus(runtimeId?: string): Promise<RuntimeInstallStatus>;
+    installRuntime(runtimeId: string): Promise<DownloadTaskStatus>;
+    cancelRuntimeInstall(taskId: string): Promise<void>;
+    deleteRuntime(runtimeId: string): Promise<void>;
 }

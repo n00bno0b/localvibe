@@ -2,7 +2,7 @@ import { injectable } from '@theia/core/shared/inversify';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { LocalBrainService, LocalBrainStatus, ModelMode, InstalledModel, ModelModeId, MachineProfile, LocalBrainModelManifest, RuntimeStatus, RuntimeLogEntry, DownloadTaskStatus, RuntimeInstallStatus } from '../common/protocol';
+import { LocalBrainService, RuntimeManifest, LocalBrainStatus, ModelMode, InstalledModel, ModelModeId, MachineProfile, LocalBrainModelManifest, RuntimeStatus, RuntimeLogEntry, DownloadTaskStatus, RuntimeInstallStatus } from '../common/protocol';
 import { HardwareDetector } from './hardware-detector';
 import { LlamaCppRuntimeProvider } from './llama-cpp-provider';
 import { DownloaderService } from './downloader-service';
@@ -216,11 +216,24 @@ export class LocalBrainServiceImpl implements LocalBrainService {
         }
     }
 
+    async listAvailableRuntimes(): Promise<RuntimeManifest[]> {
+        return this.runtimeInstaller.listAvailableRuntimes();
+    }
+
+    async getRecommendedRuntime(): Promise<RuntimeManifest | undefined> {
+        const profile = await this.getMachineProfile();
+        return this.runtimeInstaller.getRecommendedRuntime(profile);
+    }
+
+    async cancelRuntimeInstall(taskId: string): Promise<void> {
+        return this.runtimeInstaller.cancelRuntimeInstall(taskId);
+    }
+
     async getRuntimeInstallStatus(): Promise<RuntimeInstallStatus> {
         return this.runtimeInstaller.getRuntimeInstallStatus();
     }
 
-    async installRuntime(runtimeId: 'llama.cpp'): Promise<DownloadTaskStatus> {
+    async installRuntime(runtimeId: string): Promise<DownloadTaskStatus> {
         return this.runtimeInstaller.installRuntime(runtimeId);
     }
 
