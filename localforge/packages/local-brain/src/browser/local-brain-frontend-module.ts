@@ -1,28 +1,43 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
-import { LocalBrainCommandContribution, LocalBrainViewContribution } from './local-brain-contribution';
+import { LocalBrainCommandContribution, LocalBrainViewContribution, LocalBrainChatViewContribution } from './local-brain-contribution';
 import { CommandContribution } from '@theia/core/lib/common/command';
-import { LocalBrainService, LocalBrainServicePath } from '../common/protocol';
+import { LocalBrainService, LocalBrainServicePath, LocalBrainChatService, LocalBrainChatServicePath } from '../common/protocol';
 import { WebSocketConnectionProvider } from '@theia/core/lib/browser';
 import { LocalBrainWidget } from './local-brain-widget';
+import { LocalBrainChatWidget } from './local-brain-chat-widget';
 import { WidgetFactory, bindViewContribution, FrontendApplicationContribution } from '@theia/core/lib/browser';
 
 export default new ContainerModule(bind => {
-    // Bind the JSON-RPC proxy to the backend service
+    // Bind the JSON-RPC proxy to the backend services
     bind(LocalBrainService).toDynamicValue(ctx => {
         const provider = ctx.container.get(WebSocketConnectionProvider);
         return provider.createProxy<LocalBrainService>(LocalBrainServicePath);
     }).inSingletonScope();
 
-    // Bind Widget
+    bind(LocalBrainChatService).toDynamicValue(ctx => {
+        const provider = ctx.container.get(WebSocketConnectionProvider);
+        return provider.createProxy<LocalBrainChatService>(LocalBrainChatServicePath);
+    }).inSingletonScope();
+
+    // Bind Widgets
     bind(LocalBrainWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({
         id: 'local-brain-widget',
         createWidget: () => ctx.container.get<LocalBrainWidget>(LocalBrainWidget)
     })).inSingletonScope();
 
-    // Bind View Contribution
+    bind(LocalBrainChatWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: 'local-brain-chat-widget',
+        createWidget: () => ctx.container.get<LocalBrainChatWidget>(LocalBrainChatWidget)
+    })).inSingletonScope();
+
+    // Bind View Contributions
     bindViewContribution(bind, LocalBrainViewContribution);
     bind(FrontendApplicationContribution).toService(LocalBrainViewContribution);
+
+    bindViewContribution(bind, LocalBrainChatViewContribution);
+    bind(FrontendApplicationContribution).toService(LocalBrainChatViewContribution);
 
     // Bind Commands
     bind(CommandContribution).to(LocalBrainCommandContribution).inSingletonScope();

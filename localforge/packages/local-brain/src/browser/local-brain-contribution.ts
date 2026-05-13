@@ -1,8 +1,9 @@
 import { injectable, inject } from '@theia/core/shared/inversify';
-import { CommandContribution, CommandRegistry,   } from '@theia/core/lib/common';
+import { CommandContribution, CommandRegistry } from '@theia/core/lib/common';
 import { AbstractViewContribution } from '@theia/core/lib/browser';
 import { QuickPickService } from '@theia/core/lib/browser';
 import { LocalBrainWidget, LocalBrainWidgetOptions } from './local-brain-widget';
+import { LocalBrainChatWidget, LocalBrainChatWidgetOptions } from './local-brain-chat-widget';
 import { LocalBrainService } from '../common/protocol';
 
 export const LocalBrainSetModeCommand = {
@@ -18,6 +19,18 @@ export class LocalBrainViewContribution extends AbstractViewContribution<LocalBr
             widgetName: LocalBrainWidgetOptions.label,
             defaultWidgetOptions: { area: 'left' },
             toggleCommandId: 'localBrain:toggle'
+        });
+    }
+}
+
+@injectable()
+export class LocalBrainChatViewContribution extends AbstractViewContribution<LocalBrainChatWidget> {
+    constructor() {
+        super({
+            widgetId: LocalBrainChatWidgetOptions.id,
+            widgetName: LocalBrainChatWidgetOptions.label,
+            defaultWidgetOptions: { area: 'left' },
+            toggleCommandId: 'localBrainChat:toggle'
         });
     }
 }
@@ -45,7 +58,6 @@ export class LocalBrainCommandContribution implements CommandContribution {
                 });
                 if (selected) {
                     await this.localBrainService.setActiveMode(selected.value);
-                    // Open/refresh widget
                     const widget = await this.viewContribution.widget;
                     if (widget) {
                         widget.updateContent();

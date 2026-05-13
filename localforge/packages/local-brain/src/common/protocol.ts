@@ -1,4 +1,7 @@
+import { Event } from '@theia/core/lib/common/event';
+
 export const LocalBrainServicePath = '/services/local-brain';
+export const LocalBrainChatServicePath = '/services/local-brain-chat';
 
 export interface MachineProfile {
     os: string;
@@ -114,14 +117,12 @@ export interface LocalBrainService {
     getActiveMode(): Promise<ModelModeId>;
     setActiveMode(mode: ModelModeId): Promise<void>;
 
-    // Phase 2B additions
     getRuntimeStatus(): Promise<RuntimeStatus>;
     startRuntime(modelId?: string): Promise<RuntimeStatus>;
     stopRuntime(): Promise<RuntimeStatus>;
     restartRuntime(modelId?: string): Promise<RuntimeStatus>;
     getRuntimeLogs(): Promise<RuntimeLogEntry[]>;
 
-    // Phase 2C additions
     downloadModel(modelId: string, acceptLicense?: boolean): Promise<DownloadTaskStatus>;
     cancelDownload(taskId: string): Promise<void>;
     getDownloadStatus(taskId: string): Promise<DownloadTaskStatus>;
@@ -131,4 +132,35 @@ export interface LocalBrainService {
     getRuntimeInstallStatus(): Promise<RuntimeInstallStatus>;
     installRuntime(runtimeId: 'llama.cpp'): Promise<DownloadTaskStatus>;
     deleteRuntime(runtimeId: 'llama.cpp'): Promise<void>;
+}
+
+// Phase 2D: Chat Interfaces
+
+export interface LocalBrainChatMessage {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+}
+
+export interface LocalBrainChatRequest {
+    sessionId: string;
+    messages: LocalBrainChatMessage[];
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    stream?: boolean;
+}
+
+export interface LocalBrainChatChunk {
+    sessionId: string;
+    chunk: string;
+    done: boolean;
+    error?: string;
+}
+
+export const LocalBrainChatService = Symbol('LocalBrainChatService');
+
+export interface LocalBrainChatService {
+    readonly onChatChunk: Event<LocalBrainChatChunk>;
+    streamChatCompletion(request: LocalBrainChatRequest): Promise<void>;
+    cancelGeneration(sessionId: string): Promise<void>;
 }
