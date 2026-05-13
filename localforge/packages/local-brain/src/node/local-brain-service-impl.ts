@@ -1,20 +1,31 @@
 import { injectable } from '@theia/core/shared/inversify';
 import * as path from 'path';
 import * as os from 'os';
-import { LocalBrainService, LocalBrainStatus, ModelMode, InstalledModel, ModelModeId, MachineProfile, LocalBrainModelManifest } from '../common/protocol';
+import * as fs from 'fs';
+import { LocalBrainService, LocalBrainStatus, ModelMode, InstalledModel, ModelModeId, MachineProfile, LocalBrainModelManifest, RuntimeStatus, RuntimeLogEntry } from '../common/protocol';
 import { HardwareDetector } from './hardware-detector';
+import { LlamaCppRuntimeProvider } from './llama-cpp-provider';
 
 @injectable()
 export class LocalBrainServiceImpl implements LocalBrainService {
     private activeMode: ModelModeId = 'auto';
     private detector = new HardwareDetector();
+    private runtimeProvider = new LlamaCppRuntimeProvider();
 
     async getStatus(): Promise<LocalBrainStatus> {
+        const rtStatus = await this.runtimeProvider.getRuntimeStatus();
+        const models = await this.listInstalledModels();
+
+        let runtimeReadiness: 'not-installed' | 'ready' | 'error' = 'not-installed';
+        if (rtStatus.installed) {
+            runtimeReadiness = rtStatus.state === 'error' ? 'error' : 'ready';
+        }
+
         return {
-            runtimeReadiness: 'not-installed',
-            modelReadiness: 'no-models',
+            runtimeReadiness,
+            modelReadiness: models.length > 0 ? 'models-available' : 'no-models',
             modelStorageLocation: path.join(os.homedir(), '.localforge', 'models'),
-            message: 'Awaiting runtime installation.'
+            message: rtStatus.message
         };
     }
 
@@ -79,7 +90,21 @@ export class LocalBrainServiceImpl implements LocalBrainService {
     }
 
     async listInstalledModels(): Promise<InstalledModel[]> {
-        return [];
+        const modelsPath = path.join(os.homedir(), '.localforge', 'models');
+        if (!fs.existsSync(modelsPath)) {
+            return [];
+        }
+        try {
+            const files = fs.readdirSync(modelsPath);
+            const ggufFiles = files.filter(f => f.endsWith('.gguf'));
+            return ggufFiles.map(f => ({
+                id: f.replace('.gguf', ''),
+                name: f,
+                path: path.join(modelsPath, f)
+            }));
+        } catch (e) {
+            return [];
+        }
     }
 
     async getActiveMode(): Promise<ModelModeId> {
@@ -89,5 +114,46 @@ export class LocalBrainServiceImpl implements LocalBrainService {
     async setActiveMode(mode: ModelModeId): Promise<void> {
         this.activeMode = mode;
         console.log(`[Local Brain Backend] Active mode set to: ${mode}`);
+    }
+
+    // Phase 2B additions
+    async getRuntimeStatus(): Promise<RuntimeStatus> {
+        return this.runtimeProvider.getRuntimeStatus();
+    }
+
+    async startRuntime(modelId?: string): Promise<RuntimeStatus> {
+        const models = await this.listInstalledModels();
+        // If no modelId is provided, attempt to pick the first available
+        const targetModel = modelId
+            ? models.find(m => m.id === modelId)
+            : (models.length > 0 ? models[0] : undefined);
+
+        if (!targetModel || !targetModel.path) {
+            throw new Error('No installed model available to start the runtime.');
+        }
+
+        return this.runtimeProvider.startRuntime({
+            modelId: targetModel.id,
+            modelPath: targetModel.path,
+            port: 8080
+        });
+    }
+
+    async stopRuntime(): Promise<RuntimeStatus> {
+        return this.runtimeProvider.stopRuntime();
+    }
+
+    async restartRuntime(modelId?: string): Promise<RuntimeStatus> {
+        await this.stopRuntime();
+        if (modelId) {
+            return this.startRuntime(modelId);
+        } else {
+            // Attempt to start whatever was previously running or default
+            return this.startRuntime();
+        }
+    }
+
+    async getRuntimeLogs(): Promise<RuntimeLogEntry[]> {
+        return this.runtimeProvider.getLogs();
     }
 }

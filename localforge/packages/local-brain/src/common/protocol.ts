@@ -18,6 +18,35 @@ export interface LocalBrainStatus {
     message: string;
 }
 
+export type RuntimeState = 'not_ready' | 'waiting_for_model' | 'stopped' | 'starting' | 'running' | 'error';
+
+export interface RuntimeStatus {
+    installed: boolean;
+    state: RuntimeState;
+    message: string;
+    activeModelId?: string;
+    pid?: number;
+    port?: number;
+}
+
+export interface RuntimeHealth {
+    isAlive: boolean;
+    status: string;
+}
+
+export interface RuntimeLogEntry {
+    timestamp: string;
+    level: 'info' | 'error' | 'warn';
+    message: string;
+}
+
+export interface StartRuntimeOptions {
+    modelId: string;
+    modelPath: string;
+    port?: number;
+    ctxSize?: number;
+}
+
 export type ModelModeId = 'fast' | 'balanced' | 'powerful' | 'auto';
 
 export interface ModelMode {
@@ -64,4 +93,11 @@ export interface LocalBrainService {
     listInstalledModels(): Promise<InstalledModel[]>;
     getActiveMode(): Promise<ModelModeId>;
     setActiveMode(mode: ModelModeId): Promise<void>;
+
+    // Phase 2B additions
+    getRuntimeStatus(): Promise<RuntimeStatus>;
+    startRuntime(modelId?: string): Promise<RuntimeStatus>;
+    stopRuntime(): Promise<RuntimeStatus>;
+    restartRuntime(modelId?: string): Promise<RuntimeStatus>;
+    getRuntimeLogs(): Promise<RuntimeLogEntry[]>;
 }

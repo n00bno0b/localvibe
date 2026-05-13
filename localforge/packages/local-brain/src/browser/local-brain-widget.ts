@@ -1,6 +1,6 @@
 import { injectable, postConstruct, inject } from '@theia/core/shared/inversify';
 import { BaseWidget, Message } from '@theia/core/lib/browser';
-import { LocalBrainService, LocalBrainModelManifest } from '../common/protocol';
+import { LocalBrainService } from '../common/protocol';
 
 export const LocalBrainWidgetOptions = {
     id: 'local-brain-widget',
@@ -14,7 +14,7 @@ export class LocalBrainWidget extends BaseWidget {
     protected readonly localBrainService!: LocalBrainService;
 
     private container: HTMLDivElement;
-    private refreshButton: HTMLButtonElement;
+    private refreshInterval: any;
 
     constructor() {
         super();
@@ -30,12 +30,6 @@ export class LocalBrainWidget extends BaseWidget {
         this.container.style.overflowY = 'auto';
         this.container.style.height = '100%';
 
-        this.refreshButton = document.createElement('button');
-        this.refreshButton.innerText = 'Refresh Status';
-        this.refreshButton.style.marginTop = '15px';
-        this.refreshButton.style.padding = '5px 10px';
-        this.refreshButton.onclick = () => this.updateContent();
-
         this.node.appendChild(this.container);
         this.node.style.display = 'flex';
         this.node.style.flexDirection = 'column';
@@ -44,6 +38,7 @@ export class LocalBrainWidget extends BaseWidget {
     @postConstruct()
     protected async init(): Promise<void> {
         await this.updateContent();
+        this.refreshInterval = setInterval(() => this.updateContent(), 3000);
     }
 
     protected override onUpdateRequest(msg: Message): void {
@@ -51,89 +46,105 @@ export class LocalBrainWidget extends BaseWidget {
         this.updateContent();
     }
 
+    public override dispose(): void {
+        clearInterval(this.refreshInterval);
+        super.dispose();
+    }
+
     public async updateContent(): Promise<void> {
         try {
+            const rtStatus = await this.localBrainService.getRuntimeStatus();
             const status = await this.localBrainService.getStatus();
             const profile = await this.localBrainService.getMachineProfile();
-            const activeMode = await this.localBrainService.getActiveMode();
-            const manifests = await this.localBrainService.getAvailableManifests();
             const installedModels = await this.localBrainService.listInstalledModels();
+            const logs = await this.localBrainService.getRuntimeLogs();
 
-            let activeModeLabel: string = activeMode;
-            if (activeMode === 'auto') {
+            let activeModeLabel: string = await this.localBrainService.getActiveMode();
+            if (activeModeLabel === 'auto') {
                 activeModeLabel = `Auto (${profile.recommendedMode})`;
             }
 
-            const modelListHtml = installedModels.length === 0
-                ? '<div style="color: #888;">No models installed</div>'
-                : `<ul>${installedModels.map(m => `<li>${m.id}</li>`).join('')}</ul>`;
+            const canStart = rtStatus.installed && installedModels.length > 0 && (rtStatus.state === 'stopped' || rtStatus.state === 'not_ready');
+            const canStop = rtStatus.state === 'running' || rtStatus.state === 'starting';
+            const canRestart = canStop; // Can only restart if running or starting
 
-            const manifestsHtml = manifests.map((m: LocalBrainModelManifest) => `
-                <div style="background: rgba(255,255,255,0.05); padding: 8px; margin-bottom: 8px; border-radius: 4px;">
-                    <strong>${m.displayName}</strong> (${m.mode})<br/>
-                    <small>Size: ~${m.estimatedSizeGB}GB | RAM Req: ${m.minRamGB}GB+</small>
-                </div>
-            `).join('');
-
-            const diskSpaceStr = profile.freeDiskSpaceGB !== undefined
-                ? `${profile.freeDiskSpaceGB.toFixed(1)} GB free`
-                : 'Unknown';
+            const logsHtml = logs.length === 0
+                ? '<div style="color: #888;">No logs available</div>'
+                : `<div style="background: rgba(0,0,0,0.3); padding: 5px; font-family: monospace; font-size: 10px; max-height: 150px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);">
+                    ${logs.map(l => {
+                        const color = l.level === 'error' ? 'red' : l.level === 'warn' ? 'yellow' : '#ccc';
+                        const escapedMessage = l.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); return `<div style="color: ${color}; white-space: pre-wrap;">[${l.level}] ${escapedMessage}</div>`;
+                    }).reverse().join('')}
+                   </div>`;
 
             this.container.innerHTML = `
-                <h2 style="margin-top: 0;">Local Brain</h2>
+                <h2 style="margin-top: 0; display: flex; justify-content: space-between; align-items: center;">
+                    Local Brain
+                    <button id="lb-refresh" style="font-size: 10px; padding: 2px 6px;">Force Refresh</button>
+                </h2>
 
                 <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <h3 style="margin: 0 0 10px 0; font-size: 14px;">System Profile</h3>
+                    <h3 style="margin: 0 0 10px 0; font-size: 14px;">Runtime Control</h3>
+                    <div style="font-size: 12px; margin-bottom: 10px;">
+                        <div><strong>State:</strong> <span style="color: ${rtStatus.state === 'running' ? '#4CAF50' : rtStatus.state === 'error' ? 'red' : 'cyan'};">${rtStatus.state.toUpperCase()}</span></div>
+                        <div><strong>Installed:</strong> ${rtStatus.installed ? 'Yes' : 'No'}</div>
+                        <div><strong>Active Model:</strong> ${rtStatus.activeModelId || 'None'}</div>
+                        ${rtStatus.pid ? `<div><strong>PID:</strong> ${rtStatus.pid} (Port: ${rtStatus.port})</div>` : ''}
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button id="lb-start" ${canStart ? '' : 'disabled'} style="padding: 4px 10px;">Start</button>
+                        <button id="lb-stop" ${canStop ? '' : 'disabled'} style="padding: 4px 10px;">Stop</button>
+                        <button id="lb-restart" ${canRestart ? '' : 'disabled'} style="padding: 4px 10px;">Restart</button>
+                    </div>
+                    ${logsHtml}
+                </div>
+
+                <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <h3 style="margin: 0 0 10px 0; font-size: 14px;">System & Readiness</h3>
                     <div style="font-size: 12px; color: #ccc;">
+                        <div><strong>Mode:</strong> <span style="color: cyan;">${activeModeLabel}</span></div>
                         <div><strong>OS:</strong> ${profile.os} (${profile.arch})</div>
                         <div><strong>RAM:</strong> ${profile.totalRamGB.toFixed(1)} GB Total (${profile.freeRamGB.toFixed(1)} GB Free)</div>
-                        <div><strong>GPU:</strong> ${profile.gpuDetected} ${profile.gpuAccelerationPossible ? '<span style="color: #4CAF50;">[Acceleration Supported]</span>' : ''}</div>
-                        <div><strong>Disk:</strong> ${diskSpaceStr}</div>
-                    </div>
-                </div>
-
-                <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <h3 style="margin: 0 0 10px 0; font-size: 14px;">Readiness</h3>
-                    <div style="font-size: 12px;">
-                        <div style="margin-bottom: 4px;">
-                            <strong>Runtime:</strong>
-                            <span style="color: ${status.runtimeReadiness === 'not-installed' ? '#FF9800' : '#4CAF50'};">${status.runtimeReadiness}</span>
-                        </div>
-                        <div style="margin-bottom: 4px;">
-                            <strong>Models:</strong>
-                            <span style="color: ${status.modelReadiness === 'no-models' ? '#FF9800' : '#4CAF50'};">${status.modelReadiness}</span>
-                        </div>
-                        <div style="margin-bottom: 4px;">
-                            <strong>Storage:</strong> <span style="word-break: break-all; color: #888;">${status.modelStorageLocation}</span>
-                        </div>
-                        <div style="margin-bottom: 4px;">
-                            <strong>Active Mode:</strong> <span style="color: cyan;">${activeModeLabel}</span>
-                        </div>
-                        <div style="margin-top: 10px; color: cyan;">
-                            <strong>Next Step:</strong> <a href="#" onclick="return false;" style="color: cyan; text-decoration: underline;">Install Local Brain Runtime (Coming Soon)</a>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="margin-bottom: 20px;">
-                    <h3 style="margin: 0 0 10px 0; font-size: 14px;">Available Model Manifests</h3>
-                    <div style="font-size: 12px;">
-                        ${manifestsHtml}
-                    </div>
-                </div>
-
-                <div style="margin-bottom: 20px;">
-                    <h3 style="margin: 0 0 10px 0; font-size: 14px;">Installed Models</h3>
-                    <div style="font-size: 12px;">
-                        ${modelListHtml}
+                        <div><strong>GPU:</strong> ${profile.gpuDetected}</div>
+                        <div><strong>Storage:</strong> ${status.modelStorageLocation}</div>
+                        ${!rtStatus.installed ? `<div style="margin-top: 5px; color: #FF9800;">Action Required: Install Local Brain Runtime (Coming Phase 2C)</div>` : ''}
                     </div>
                 </div>
             `;
-            this.container.appendChild(this.refreshButton);
+
+            // Attach event listeners safely
+            const attach = (id: string, cb: () => void) => {
+                const el = this.container.querySelector(`#${id}`);
+                if (el) { el.addEventListener('click', cb); }
+            };
+
+            attach('lb-refresh', () => this.updateContent());
+            attach('lb-start', async () => {
+                try {
+                    await this.localBrainService.startRuntime();
+                    this.updateContent();
+                } catch (err) {
+                    alert(`Failed to start: ${String(err)}`);
+                }
+            });
+            attach('lb-stop', async () => {
+                await this.localBrainService.stopRuntime();
+                this.updateContent();
+            });
+            attach('lb-restart', async () => {
+                try {
+                    await this.localBrainService.restartRuntime();
+                    this.updateContent();
+                } catch (err) {
+                    alert(`Failed to restart: ${String(err)}`);
+                }
+            });
 
         } catch (e) {
-            this.container.innerHTML = `<div style="color: red;">Error loading Local Brain status: ${String(e)}</div>`;
-            this.container.appendChild(this.refreshButton);
+            this.container.innerHTML = `<div style="color: red;">Error loading Local Brain status: ${String(e)}</div>
+            <button id="lb-refresh-err" style="margin-top: 10px;">Retry</button>`;
+            const retry = this.container.querySelector('#lb-refresh-err');
+            if (retry) { retry.addEventListener('click', () => this.updateContent()); }
         }
     }
 }
