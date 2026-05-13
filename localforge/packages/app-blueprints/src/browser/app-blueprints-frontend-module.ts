@@ -1,16 +1,18 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { CommandContribution } from '@theia/core/lib/common/command';
 import { WebSocketConnectionProvider, WidgetFactory, bindViewContribution, FrontendApplicationContribution } from '@theia/core/lib/browser';
-import { AppBlueprintCommandContribution, ForgeScoutViewContribution, PreviewViewContribution, DependencyDoctorViewContribution } from './app-blueprints-contribution';
+import { AppBlueprintCommandContribution, ForgeScoutViewContribution, PreviewViewContribution, DependencyDoctorViewContribution, CodegenDiffViewContribution } from './app-blueprints-contribution';
 import { ForgeScoutWidget } from './forge-scout-widget';
 import { PreviewWidget } from './preview-widget';
 import { DependencyDoctorWidget } from './dependency-doctor-widget';
+import { CodegenDiffWidget } from './codegen-diff-widget';
 import {
     ForgeScoutService, ForgeScoutServicePath,
     ProjectGeneratorService, ProjectGeneratorServicePath,
     PreviewService, PreviewServicePath,
     DependencyDoctorService, DependencyDoctorServicePath
 } from '../common/protocol';
+import { AICodegenService, AICodegenServicePath } from '../../../local-brain/src/common/protocol';
 
 export default new ContainerModule(bind => {
     // Bind RPC
@@ -34,6 +36,11 @@ export default new ContainerModule(bind => {
         return provider.createProxy<DependencyDoctorService>(DependencyDoctorServicePath);
     }).inSingletonScope();
 
+    bind(AICodegenService).toDynamicValue(ctx => {
+        const provider = ctx.container.get(WebSocketConnectionProvider);
+        return provider.createProxy<AICodegenService>(AICodegenServicePath);
+    }).inSingletonScope();
+
     // Bind Widget
     bind(ForgeScoutWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({
@@ -53,6 +60,12 @@ export default new ContainerModule(bind => {
         createWidget: () => ctx.container.get<DependencyDoctorWidget>(DependencyDoctorWidget)
     })).inSingletonScope();
 
+    bind(CodegenDiffWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: 'localforge-codegen-diff-widget',
+        createWidget: () => ctx.container.get<CodegenDiffWidget>(CodegenDiffWidget)
+    })).inSingletonScope();
+
     // Bind View
     bindViewContribution(bind, ForgeScoutViewContribution);
     bind(FrontendApplicationContribution).toService(ForgeScoutViewContribution);
@@ -62,6 +75,9 @@ export default new ContainerModule(bind => {
 
     bindViewContribution(bind, DependencyDoctorViewContribution);
     bind(FrontendApplicationContribution).toService(DependencyDoctorViewContribution);
+
+    bindViewContribution(bind, CodegenDiffViewContribution);
+    bind(FrontendApplicationContribution).toService(CodegenDiffViewContribution);
 
     // Bind Command
     bind(CommandContribution).to(AppBlueprintCommandContribution).inSingletonScope();

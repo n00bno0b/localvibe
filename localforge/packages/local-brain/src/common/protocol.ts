@@ -164,3 +164,59 @@ export interface LocalBrainChatService {
     streamChatCompletion(request: LocalBrainChatRequest): Promise<void>;
     cancelGeneration(sessionId: string): Promise<void>;
 }
+
+// Phase 3D: AI Codegen Loop
+export const AICodegenServicePath = '/services/ai-codegen';
+
+export interface CodegenRequest {
+    workspacePath: string;
+    appPath: string;
+    userPrompt: string;
+    targetFiles?: string[];
+    mode: 'small-edit' | 'component' | 'page' | 'api-route' | 'bugfix' | 'refactor';
+    safetyLevel: 'suggest-only' | 'diff-required';
+}
+
+export interface FilePatch {
+    path: string;
+    action: 'create' | 'modify' | 'delete';
+    before?: string;
+    after?: string;
+}
+
+export interface CommandPatch {
+    command: string;
+    reason: string;
+    requiresApproval: boolean;
+}
+
+export interface GeneratedPatch {
+    id: string;
+    summary: string;
+    files: FilePatch[];
+    commands?: CommandPatch[];
+    risks: string[];
+}
+
+export interface CodegenPlan {
+    id: string;
+    request: CodegenRequest;
+    contextGathered: string[];
+    status: 'analyzing' | 'generating' | 'ready';
+}
+
+export interface ApplyPatchResult {
+    success: boolean;
+    filesModified: number;
+    error?: string;
+}
+
+export const AICodegenService = Symbol('AICodegenService');
+
+export interface AICodegenService {
+    createEditPlan(input: CodegenRequest): Promise<CodegenPlan>;
+    generatePatch(planId: string): Promise<GeneratedPatch>;
+    applyPatch(patchId: string): Promise<ApplyPatchResult>;
+    rejectPatch(patchId: string): Promise<void>;
+    getActivePatch(): Promise<GeneratedPatch | null>;
+}

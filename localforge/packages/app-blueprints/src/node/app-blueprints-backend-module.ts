@@ -7,10 +7,12 @@ import {
     PreviewService, PreviewServicePath,
     DependencyDoctorService, DependencyDoctorServicePath
 } from '../common/protocol';
+import { AICodegenService, AICodegenServicePath } from '../../../local-brain/src/common/protocol';
 import { ForgeScoutServiceImpl } from './forge-scout-service-impl';
 import { ProjectGeneratorServiceImpl } from './project-generator-service-impl';
 import { PreviewServiceImpl } from './preview-service-impl';
 import { DependencyDoctorServiceImpl } from './dependency-doctor-service-impl';
+import { AICodegenServiceImpl } from './codegen-service-impl';
 
 export default new ContainerModule(bind => {
     bind(ForgeScoutService).to(ForgeScoutServiceImpl).inSingletonScope();
@@ -37,11 +39,17 @@ export default new ContainerModule(bind => {
         })
     ).inSingletonScope();
 
-    // Dependency Doctor Service
     bind(DependencyDoctorService).to(DependencyDoctorServiceImpl).inSingletonScope();
     bind(ConnectionHandler).toDynamicValue(ctx =>
         new JsonRpcConnectionHandler(DependencyDoctorServicePath, () => {
             return ctx.container.get<DependencyDoctorService>(DependencyDoctorService);
+        })
+    ).inSingletonScope();
+
+    bind(AICodegenService).to(AICodegenServiceImpl).inSingletonScope();
+    bind(ConnectionHandler).toDynamicValue(ctx =>
+        new JsonRpcConnectionHandler(AICodegenServicePath, () => {
+            return ctx.container.get<AICodegenService>(AICodegenService);
         })
     ).inSingletonScope();
 });

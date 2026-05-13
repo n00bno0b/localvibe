@@ -4,6 +4,7 @@ import { AbstractViewContribution } from '@theia/core/lib/browser';
 import { ForgeScoutWidget, ForgeScoutWidgetOptions } from './forge-scout-widget';
 import { PreviewWidget, PreviewWidgetOptions } from './preview-widget';
 import { DependencyDoctorWidget, DependencyDoctorWidgetOptions } from './dependency-doctor-widget';
+import { CodegenDiffWidget, CodegenDiffWidgetOptions } from './codegen-diff-widget';
 
 export const AppBlueprintCommand = {
     id: 'localforge.appBlueprint.new',
@@ -18,6 +19,11 @@ export const PreviewAppCommand = {
 export const DependencyDoctorCommand = {
     id: 'localforge.dependencyDoctor',
     label: 'LocalForge: Dependency Doctor'
+};
+
+export const CodegenDiffCommand = {
+    id: 'localforge.codegenDiff',
+    label: 'LocalForge: Code Diff Approval'
 };
 
 @injectable()
@@ -57,11 +63,24 @@ export class DependencyDoctorViewContribution extends AbstractViewContribution<D
 }
 
 @injectable()
+export class CodegenDiffViewContribution extends AbstractViewContribution<CodegenDiffWidget> {
+    constructor() {
+        super({
+            widgetId: CodegenDiffWidgetOptions.id,
+            widgetName: CodegenDiffWidgetOptions.label,
+            defaultWidgetOptions: { area: 'bottom' },
+            toggleCommandId: 'codegenDiff:toggle'
+        });
+    }
+}
+
+@injectable()
 export class AppBlueprintCommandContribution implements CommandContribution {
     constructor(
         @inject(ForgeScoutViewContribution) private readonly scoutViewContribution: ForgeScoutViewContribution,
         @inject(PreviewViewContribution) private readonly previewViewContribution: PreviewViewContribution,
-        @inject(DependencyDoctorViewContribution) private readonly doctorViewContribution: DependencyDoctorViewContribution
+        @inject(DependencyDoctorViewContribution) private readonly doctorViewContribution: DependencyDoctorViewContribution,
+        @inject(CodegenDiffViewContribution) private readonly diffViewContribution: CodegenDiffViewContribution
     ) {}
 
     registerCommands(registry: CommandRegistry): void {
@@ -80,6 +99,12 @@ export class AppBlueprintCommandContribution implements CommandContribution {
         registry.registerCommand(DependencyDoctorCommand, {
             execute: async () => {
                 await this.doctorViewContribution.openView({ activate: true });
+            }
+        });
+
+        registry.registerCommand(CodegenDiffCommand, {
+            execute: async () => {
+                await this.diffViewContribution.openView({ activate: true });
             }
         });
     }

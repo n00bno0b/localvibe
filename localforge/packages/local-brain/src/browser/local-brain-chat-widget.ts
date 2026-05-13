@@ -1,6 +1,6 @@
 import { injectable, postConstruct, inject } from '@theia/core/shared/inversify';
 import { BaseWidget } from '@theia/core/lib/browser';
-import { LocalBrainService, LocalBrainChatService, LocalBrainChatMessage } from '../common/protocol';
+import { LocalBrainService, LocalBrainChatService, LocalBrainChatMessage, AICodegenService } from '../common/protocol';
 
 export const LocalBrainChatWidgetOptions = {
     id: 'local-brain-chat-widget',
@@ -16,6 +16,9 @@ export class LocalBrainChatWidget extends BaseWidget {
     @inject(LocalBrainChatService)
     protected readonly chatService!: LocalBrainChatService;
 
+    @inject(AICodegenService)
+    protected readonly codegenService!: AICodegenService;
+
     private container: HTMLDivElement;
     private historyContainer: HTMLDivElement;
     private inputArea: HTMLTextAreaElement;
@@ -26,6 +29,7 @@ export class LocalBrainChatWidget extends BaseWidget {
     private messages: LocalBrainChatMessage[] = [];
     private currentSessionId: string | null = null;
     private isGenerating = false;
+    private proposeModeToggle!: HTMLInputElement;
 
     constructor() {
         super();
@@ -87,8 +91,31 @@ export class LocalBrainChatWidget extends BaseWidget {
         inputWrapper.appendChild(this.inputArea);
         inputWrapper.appendChild(btnWrapper);
 
+        const modeWrapper = document.createElement('div');
+        modeWrapper.style.display = 'flex';
+        modeWrapper.style.alignItems = 'center';
+        modeWrapper.style.gap = '5px';
+        modeWrapper.style.marginTop = '5px';
+        modeWrapper.style.fontSize = '12px';
+
+        this.proposeModeToggle = document.createElement('input');
+        this.proposeModeToggle.type = 'checkbox';
+        this.proposeModeToggle.id = 'codegen-mode-toggle';
+
+        const modeLabel = document.createElement('label');
+        modeLabel.innerText = 'Generate Code Change (Phase 3D)';
+        modeLabel.htmlFor = 'codegen-mode-toggle';
+        modeLabel.style.color = '#ccc';
+
+        modeWrapper.appendChild(this.proposeModeToggle);
+        modeWrapper.appendChild(modeLabel);
+
+        inputWrapper.appendChild(modeWrapper);
+
+
         this.container.appendChild(this.statusDiv);
         this.container.appendChild(this.historyContainer);
+
         this.container.appendChild(inputWrapper);
 
         this.node.appendChild(this.container);
@@ -168,6 +195,7 @@ export class LocalBrainChatWidget extends BaseWidget {
         return body;
     }
 
+
     private async handleSend() {
         const text = this.inputArea.value.trim();
         if (!text || this.isGenerating) return;
@@ -183,9 +211,40 @@ export class LocalBrainChatWidget extends BaseWidget {
         this.messages.push({ role: 'user', content: text });
         this.appendMessageToUI('user', text);
 
-        this.currentSessionId = `chat_${Date.now()}`;
+        if (this.proposeModeToggle && this.proposeModeToggle.checked) {
+            // Trigger Phase 3D Codegen Flow
+            this.appendMessageToUI('assistant', 'Analyzing project state and generating code proposal...');
+            try {
+                // Determine workspace context safely
+                const workspacePath = 'default';
+                const plan = await this.codegenService.createEditPlan({
+                    workspacePath,
+                    appPath: 'apps/web',
+                    userPrompt: text,
+                    mode: 'small-edit',
+                    safetyLevel: 'diff-required'
+                });
 
-        // Append placeholder for assistant response
+                const patch = await this.codegenService.generatePatch(plan.id);
+
+                this.appendMessageToUI('assistant', `I have generated a patch: "${patch.summary}". Please open the "Code Diff Approval" panel to review and apply it.`);
+
+                // Try to open the panel
+                const commands = (window as any).theia?.commands;
+                if (commands) await commands.executeCommand('localforge.codegenDiff');
+
+            } catch (e) {
+                this.appendMessageToUI('assistant', `Failed to generate code patch: ${String(e)}`);
+            } finally {
+                this.isGenerating = false;
+                this.stopButton.disabled = true;
+                this.updateStatus();
+            }
+            return;
+        }
+
+        // Default Chat flow
+        this.currentSessionId = `chat_${Date.now()}`;
         this.appendMessageToUI('assistant', '', this.currentSessionId);
 
         try {
