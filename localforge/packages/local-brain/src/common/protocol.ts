@@ -220,3 +220,51 @@ export interface AICodegenService {
     rejectPatch(patchId: string): Promise<void>;
     getActivePatch(): Promise<GeneratedPatch | null>;
 }
+
+// Alpha Phase 1: AI Provider Wiring
+export const AIProviderRegistryPath = '/services/ai-provider-registry';
+
+export type ProviderType = 'local' | 'cloud' | 'mock';
+
+export interface AIModel {
+    id: string;
+    displayName: string;
+    contextWindow: number;
+}
+
+export interface ProviderConnectionStatus {
+    connected: boolean;
+    error?: string;
+}
+
+export interface AIProviderInfo {
+    id: string;
+    displayName: string;
+    type: ProviderType;
+    supportsStreaming: boolean;
+}
+
+export interface AIProviderCredentials {
+    providerId: string;
+    apiKey: string;
+    baseUrl?: string;
+}
+
+export type ProviderRoutingMode = 'local-only' | 'local-first' | 'cloud-first' | 'ask' | 'mock';
+
+export const AIProviderRegistry = Symbol('AIProviderRegistry');
+
+export interface AIProviderRegistry {
+    listProviders(): Promise<AIProviderInfo[]>;
+    getActiveProvider(): Promise<AIProviderInfo>;
+    setActiveProvider(providerId: string): Promise<void>;
+
+    getRoutingMode(): Promise<ProviderRoutingMode>;
+    setRoutingMode(mode: ProviderRoutingMode): Promise<void>;
+
+    setCredentials(creds: AIProviderCredentials): Promise<void>;
+    checkConnection(providerId: string): Promise<ProviderConnectionStatus>;
+
+    // Core chat interface used by Codegen
+    chat(request: LocalBrainChatRequest, providerId?: string): Promise<string>;
+}

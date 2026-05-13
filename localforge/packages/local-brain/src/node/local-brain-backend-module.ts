@@ -1,8 +1,9 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { ConnectionHandler, JsonRpcConnectionHandler } from '@theia/core/lib/common/messaging';
-import { LocalBrainService, LocalBrainServicePath, LocalBrainChatService, LocalBrainChatServicePath } from '../common/protocol';
+import { LocalBrainService, LocalBrainServicePath, LocalBrainChatService, LocalBrainChatServicePath, AIProviderRegistry, AIProviderRegistryPath } from '../common/protocol';
 import { LocalBrainServiceImpl } from './local-brain-service-impl';
 import { LocalBrainChatServiceImpl } from './chat-service-impl';
+import { AIProviderRegistryImpl } from './provider-registry-impl';
 
 export default new ContainerModule(bind => {
     bind(LocalBrainService).to(LocalBrainServiceImpl).inSingletonScope();
@@ -16,6 +17,13 @@ export default new ContainerModule(bind => {
     bind(ConnectionHandler).toDynamicValue(ctx =>
         new JsonRpcConnectionHandler(LocalBrainChatServicePath, () => {
             return ctx.container.get<LocalBrainChatService>(LocalBrainChatService);
+        })
+    ).inSingletonScope();
+
+    bind(AIProviderRegistry).to(AIProviderRegistryImpl).inSingletonScope();
+    bind(ConnectionHandler).toDynamicValue(ctx =>
+        new JsonRpcConnectionHandler(AIProviderRegistryPath, () => {
+            return ctx.container.get<AIProviderRegistry>(AIProviderRegistry);
         })
     ).inSingletonScope();
 });
