@@ -129,6 +129,7 @@ module.exports = async (port, host, argv) => {
         await load(require('@theia/plugin-dev/lib/node-electron/plugin-dev-electron-backend-module'));
         await load(require('@theia/remote-wsl/lib/electron-node/remote-wsl-backend-module'));
         await load(require('@localforge/local-brain/lib/node/local-brain-backend-module'));
+        await load(require('@localforge/app-blueprints/lib/node/app-blueprints-backend-module'));
         startupLog('modules loaded');
         return await start(port, host, argv);
     } catch (error) {

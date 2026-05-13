@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "description": "App Blueprints extension for LocalForge",
   "dependencies": {
-    "@theia/core": "1.71.0"
+    "@theia/core": "1.71.0",
+    "@localforge/local-brain": "0.0.0",
+    "@theia/workspace": "1.71.0"
   },
   "devDependencies": {
     "rimraf": "latest",
@@ -11,7 +13,8 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/app-blueprints-frontend-module"
+      "frontend": "lib/browser/app-blueprints-frontend-module",
+      "backend": "lib/node/app-blueprints-backend-module"
     }
   ],
   "scripts": {
