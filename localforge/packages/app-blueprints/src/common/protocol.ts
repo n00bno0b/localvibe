@@ -1,3 +1,4 @@
+import { Event } from '@theia/core/lib/common/event';
 export const ForgeScoutServicePath = '/services/forge-scout';
 
 export interface DiscoveryInput {
@@ -111,4 +112,42 @@ export interface ProjectGeneratorService {
     analyzeBlueprint(workspaceRootUri: string): Promise<BlueprintAnalysis>;
     getGenerationPlan(input: GenerateProjectInput): Promise<ProjectGenerationPlan>;
     generateProject(input: GenerateProjectInput): Promise<ProjectGenerationResult>;
+}
+
+// Phase 3C: Live Preview Service
+export const PreviewServicePath = '/services/preview';
+
+export type PreviewState =
+    | 'stopped'
+    | 'installing_dependencies'
+    | 'starting_server'
+    | 'waiting_for_localhost'
+    | 'running'
+    | 'crashed'
+    | 'missing_package_manager'
+    | 'port_unavailable'
+    | 'missing_directory';
+
+export interface PreviewStatus {
+    state: PreviewState;
+    url?: string;
+    message?: string;
+}
+
+export interface PreviewLogEvent {
+    type: 'stdout' | 'stderr' | 'system';
+    message: string;
+    timestamp: number;
+}
+
+export const PreviewService = Symbol('PreviewService');
+
+export interface PreviewService {
+    readonly onStateChange: Event<PreviewStatus>;
+    readonly onLog: Event<PreviewLogEvent>;
+
+    getStatus(): Promise<PreviewStatus>;
+    startPreview(workspaceRootUri: string): Promise<void>;
+    stopPreview(): Promise<void>;
+    restartPreview(workspaceRootUri: string): Promise<void>;
 }

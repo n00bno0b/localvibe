@@ -1,8 +1,14 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { ConnectionHandler, JsonRpcConnectionHandler } from '@theia/core/lib/common/messaging';
-import { ForgeScoutService, ForgeScoutServicePath, ProjectGeneratorService, ProjectGeneratorServicePath } from '../common/protocol';
+import { BackendApplicationContribution } from '@theia/core/lib/node';
+import {
+    ForgeScoutService, ForgeScoutServicePath,
+    ProjectGeneratorService, ProjectGeneratorServicePath,
+    PreviewService, PreviewServicePath
+} from '../common/protocol';
 import { ForgeScoutServiceImpl } from './forge-scout-service-impl';
 import { ProjectGeneratorServiceImpl } from './project-generator-service-impl';
+import { PreviewServiceImpl } from './preview-service-impl';
 
 export default new ContainerModule(bind => {
     bind(ForgeScoutService).to(ForgeScoutServiceImpl).inSingletonScope();
@@ -16,6 +22,16 @@ export default new ContainerModule(bind => {
     bind(ConnectionHandler).toDynamicValue(ctx =>
         new JsonRpcConnectionHandler(ProjectGeneratorServicePath, () => {
             return ctx.container.get<ProjectGeneratorService>(ProjectGeneratorService);
+        })
+    ).inSingletonScope();
+
+    bind(PreviewServiceImpl).toSelf().inSingletonScope();
+    bind(PreviewService).toService(PreviewServiceImpl);
+    bind(BackendApplicationContribution).toService(PreviewServiceImpl);
+
+    bind(ConnectionHandler).toDynamicValue(ctx =>
+        new JsonRpcConnectionHandler(PreviewServicePath, () => {
+            return ctx.container.get<PreviewService>(PreviewService);
         })
     ).inSingletonScope();
 });

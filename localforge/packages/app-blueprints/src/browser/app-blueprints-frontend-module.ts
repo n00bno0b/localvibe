@@ -1,14 +1,10 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { CommandContribution } from '@theia/core/lib/common/command';
 import { WebSocketConnectionProvider, WidgetFactory, bindViewContribution, FrontendApplicationContribution } from '@theia/core/lib/browser';
-import { AppBlueprintCommandContribution, ForgeScoutViewContribution } from './app-blueprints-contribution';
+import { AppBlueprintCommandContribution, ForgeScoutViewContribution, PreviewViewContribution } from './app-blueprints-contribution';
 import { ForgeScoutWidget } from './forge-scout-widget';
-import { ForgeScoutService, ForgeScoutServicePath, ProjectGeneratorService, ProjectGeneratorServicePath } from '../common/protocol';
-
-export const AppBlueprintCommand = {
-    id: 'localforge.appBlueprint.new',
-    label: 'LocalForge: New App Blueprint (Forge Scout)'
-};
+import { PreviewWidget } from './preview-widget';
+import { ForgeScoutService, ForgeScoutServicePath, ProjectGeneratorService, ProjectGeneratorServicePath, PreviewService, PreviewServicePath } from '../common/protocol';
 
 export default new ContainerModule(bind => {
     // Bind RPC
@@ -22,6 +18,11 @@ export default new ContainerModule(bind => {
         return provider.createProxy<ProjectGeneratorService>(ProjectGeneratorServicePath);
     }).inSingletonScope();
 
+    bind(PreviewService).toDynamicValue(ctx => {
+        const provider = ctx.container.get(WebSocketConnectionProvider);
+        return provider.createProxy<PreviewService>(PreviewServicePath);
+    }).inSingletonScope();
+
     // Bind Widget
     bind(ForgeScoutWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({
@@ -29,9 +30,18 @@ export default new ContainerModule(bind => {
         createWidget: () => ctx.container.get<ForgeScoutWidget>(ForgeScoutWidget)
     })).inSingletonScope();
 
+    bind(PreviewWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: 'localforge-preview-widget',
+        createWidget: () => ctx.container.get<PreviewWidget>(PreviewWidget)
+    })).inSingletonScope();
+
     // Bind View
     bindViewContribution(bind, ForgeScoutViewContribution);
     bind(FrontendApplicationContribution).toService(ForgeScoutViewContribution);
+
+    bindViewContribution(bind, PreviewViewContribution);
+    bind(FrontendApplicationContribution).toService(PreviewViewContribution);
 
     // Bind Command
     bind(CommandContribution).to(AppBlueprintCommandContribution).inSingletonScope();
