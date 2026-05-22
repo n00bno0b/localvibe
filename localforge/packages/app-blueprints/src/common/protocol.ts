@@ -340,3 +340,29 @@ export interface TemplateContext {
   dependencies: any;
   devDependencies: any;
 }
+
+// Beta Phase 2: Project Indexer
+export const ProjectIndexerServicePath = '/services/project-indexer';
+
+export interface IndexStatus {
+    state: 'idle' | 'indexing' | 'ready' | 'error';
+    filesIndexed: number;
+    lastUpdated?: number;
+    error?: string;
+}
+
+export interface SearchResult {
+    filePath: string;
+    score: number;
+    snippet: string;
+}
+
+export const ProjectIndexerService = Symbol('ProjectIndexerService');
+
+export interface ProjectIndexerService {
+    readonly onIndexUpdated: Event<IndexStatus>;
+
+    getIndexStatus(workspaceRootUri: string): Promise<IndexStatus>;
+    indexWorkspace(workspaceRootUri: string): Promise<IndexStatus>;
+    search(workspaceRootUri: string, query: string, limit?: number): Promise<SearchResult[]>;
+}

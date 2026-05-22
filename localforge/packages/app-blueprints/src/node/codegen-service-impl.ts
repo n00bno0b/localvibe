@@ -1,3 +1,4 @@
+import { ProjectIndexerService } from '../common/protocol';
 import { injectable, inject } from '@theia/core/shared/inversify';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,6 +18,9 @@ export class AICodegenServiceImpl implements AICodegenService {
 
     @inject(AIProviderRegistry)
     protected readonly aiRegistry!: AIProviderRegistry;
+
+    @inject(ProjectIndexerService)
+    protected readonly indexerService!: ProjectIndexerService;
 
     private plans = new Map<string, CodegenPlan>();
     private patches = new Map<string, GeneratedPatch>();
@@ -55,6 +59,24 @@ export class AICodegenServiceImpl implements AICodegenService {
 
         const statePath = path.join(rootPath, '.localforge', 'project-state.json');
         if (fs.existsSync(statePath)) contextGathered.push('.localforge/project-state.json');
+
+        // Dynamically discover relevant project files using Semantic/Keyword Indexer
+        try {
+            // Ensure index is built (in a real app this would run on project load)
+            const indexStatus = await this.indexerService.getIndexStatus(rootUri.toString());
+            if (indexStatus.state === 'idle' || indexStatus.filesIndexed === 0) {
+                await this.indexerService.indexWorkspace(rootUri.toString());
+            }
+
+            const searchResults = await this.indexerService.search(rootUri.toString(), input.userPrompt, 3);
+            for (const res of searchResults) {
+                if (!contextGathered.includes(res.filePath)) {
+                    contextGathered.push(res.filePath);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to execute project indexer search", e);
+        }
 
         const plan: CodegenPlan = {
             id,

@@ -19,7 +19,8 @@ import {
     ProjectGeneratorService, ProjectGeneratorServicePath,
     PreviewService, PreviewServicePath,
     DependencyDoctorService, DependencyDoctorServicePath,
-    ForgeConductorService, ForgeConductorServicePath
+    ForgeConductorService, ForgeConductorServicePath,
+    ProjectIndexerService, ProjectIndexerServicePath
 } from '../common/protocol';
 import { AICodegenService, AICodegenServicePath } from '../../../local-brain/src/common/protocol';
 
@@ -43,6 +44,11 @@ export default new ContainerModule(bind => {
     bind(DependencyDoctorService).toDynamicValue(ctx => {
         const provider = ctx.container.get(WebSocketConnectionProvider);
         return provider.createProxy<DependencyDoctorService>(DependencyDoctorServicePath);
+    }).inSingletonScope();
+
+    bind(ProjectIndexerService).toDynamicValue(ctx => {
+        const provider = ctx.container.get(WebSocketConnectionProvider);
+        return provider.createProxy<ProjectIndexerService>(ProjectIndexerServicePath);
     }).inSingletonScope();
 
     bind(AICodegenService).toDynamicValue(ctx => {

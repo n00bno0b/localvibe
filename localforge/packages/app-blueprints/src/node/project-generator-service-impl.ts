@@ -69,7 +69,7 @@ export class ProjectGeneratorServiceImpl implements ProjectGeneratorService {
 
         const entities = analysis.databaseEntities.map(e => {
             const match = e.match(/(.*?)\s*\((.*?)\)/);
-            if (!match) return { name: e.replace(/\\W+/g, ''), fields: [{ name: 'id', type: 'String @id @default(cuid())' }] };
+            if (!match) return { name: e.replace(/\W+/g, ''), fields: [{ name: 'id', type: 'String @id @default(cuid())' }] };
 
             const fields = match[2].split(',').map(f => {
                 const fName = f.trim();
@@ -102,7 +102,7 @@ export class ProjectGeneratorServiceImpl implements ProjectGeneratorService {
             appName: "generated-app",
             appType: analysis.appType,
             pages: analysis.pages,
-            components: analysis.components.map(c => c.replace(/\\W+/g, '')),
+            components: analysis.components.map(c => c.replace(/\W+/g, '')),
             apiRoutes,
             entities,
             integrations: extractIntegrations(analysis.rawContent),
@@ -213,7 +213,7 @@ export class ProjectGeneratorServiceImpl implements ProjectGeneratorService {
             for (const page of ctx.pages) {
                 const route = page.split(' ')[0].replace(/^\//, '');
                 const filePath = route ? `${plan.targetDir}/src/app/${route}/page.tsx` : `${plan.targetDir}/src/app/page.tsx`;
-                const componentName = route ? route.replace(/\\W+/g, '_').toUpperCase() + '_PAGE' : 'Home';
+                const componentName = route ? route.replace(/\W+/g, '_').toUpperCase() + '_PAGE' : 'Home';
                 await renderAndWrite('src/app/page.tsx.ejs', filePath, { pagePath: page, componentName });
             }
 

@@ -6,7 +6,8 @@ import {
     ProjectGeneratorService, ProjectGeneratorServicePath,
     PreviewService, PreviewServicePath,
     DependencyDoctorService, DependencyDoctorServicePath,
-    ForgeConductorService, ForgeConductorServicePath
+    ForgeConductorService, ForgeConductorServicePath,
+    ProjectIndexerService, ProjectIndexerServicePath
 } from '../common/protocol';
 import { AICodegenService, AICodegenServicePath } from '../../../local-brain/src/common/protocol';
 import { ForgeConductorServiceImpl } from './forge-conductor-service-impl';
@@ -15,6 +16,7 @@ import { ProjectGeneratorServiceImpl } from './project-generator-service-impl';
 import { PreviewServiceImpl } from './preview-service-impl';
 import { DependencyDoctorServiceImpl } from './dependency-doctor-service-impl';
 import { AICodegenServiceImpl } from './codegen-service-impl';
+import { ProjectIndexerServiceImpl } from './project-indexer-service-impl';
 
 export default new ContainerModule(bind => {
     bind(ForgeConductorService).to(ForgeConductorServiceImpl).inSingletonScope();
@@ -52,6 +54,13 @@ export default new ContainerModule(bind => {
     bind(ConnectionHandler).toDynamicValue(ctx =>
         new JsonRpcConnectionHandler(DependencyDoctorServicePath, () => {
             return ctx.container.get<DependencyDoctorService>(DependencyDoctorService);
+        })
+    ).inSingletonScope();
+
+    bind(ProjectIndexerService).to(ProjectIndexerServiceImpl).inSingletonScope();
+    bind(ConnectionHandler).toDynamicValue(ctx =>
+        new JsonRpcConnectionHandler(ProjectIndexerServicePath, () => {
+            return ctx.container.get<ProjectIndexerService>(ProjectIndexerService);
         })
     ).inSingletonScope();
 
