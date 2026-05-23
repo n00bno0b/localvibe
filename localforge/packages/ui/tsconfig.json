@@ -1,0 +1,14 @@
+{
+  "extends": "../../../configs/base.tsconfig",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "lib",
+    "rootDir": "src",
+    "jsx": "react",
+    "moduleResolution": "node",
+    "esModuleInterop": true
+  },
+  "include": [
+    "src"
+  ]
+}
