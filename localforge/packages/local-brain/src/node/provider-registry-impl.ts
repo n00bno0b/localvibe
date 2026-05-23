@@ -12,6 +12,8 @@ import { AIProviderAdapter } from './providers/base-provider';
 import { MockProvider } from './providers/mock-provider';
 import { LocalBrainProvider } from './providers/local-brain-provider';
 import { OpenAIProvider } from './providers/openai-provider';
+import { AnthropicProvider } from './providers/anthropic-provider';
+import { GeminiProvider } from './providers/gemini-provider';
 
 @injectable()
 export class AIProviderRegistryImpl implements AIProviderRegistry {
@@ -30,6 +32,12 @@ export class AIProviderRegistryImpl implements AIProviderRegistry {
 
         const openai = new OpenAIProvider();
         this.providers.set(openai.getInfo().id, openai);
+
+        const anthropic = new AnthropicProvider();
+        this.providers.set(anthropic.getInfo().id, anthropic);
+
+        const gemini = new GeminiProvider();
+        this.providers.set(gemini.getInfo().id, gemini);
     }
 
     private ensureLocalProviderLoaded() {
