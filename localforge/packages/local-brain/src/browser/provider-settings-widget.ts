@@ -82,10 +82,27 @@ export class ProviderSettingsWidget extends BaseWidget {
 
             <div style="margin-bottom: 20px; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid #444; border-radius: 4px;">
                 <h3 style="margin: 0 0 10px 0; font-size: 14px;">Cloud API Keys (BYOK)</h3>
-                <label style="display: block; font-size: 12px; margin-bottom: 5px; color: #ccc;">OpenAI API Key</label>
-                <input id="prov-openai-key" type="password" placeholder="sk-..." style="width: 100%; padding: 5px; background: #333; color: white; border: 1px solid #555; margin-bottom: 10px;" />
-                <button id="prov-save-key" style="padding: 4px 10px; background: #007acc; color: white; border: none; cursor: pointer;">Save Key & Test Connection</button>
-                <div id="prov-test-res" style="margin-top: 10px; font-size: 12px;"></div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-size: 12px; margin-bottom: 5px; color: #ccc;">OpenAI API Key</label>
+                    <input id="prov-openai-key" type="password" placeholder="sk-..." style="width: 100%; padding: 5px; background: #333; color: white; border: 1px solid #555; margin-bottom: 10px;" />
+                    <button id="prov-save-openai-key" style="padding: 4px 10px; background: #007acc; color: white; border: none; cursor: pointer;">Save Key & Test Connection</button>
+                    <div id="prov-test-openai-res" style="margin-top: 10px; font-size: 12px;"></div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-size: 12px; margin-bottom: 5px; color: #ccc;">Anthropic API Key</label>
+                    <input id="prov-anthropic-key" type="password" placeholder="sk-ant-..." style="width: 100%; padding: 5px; background: #333; color: white; border: 1px solid #555; margin-bottom: 10px;" />
+                    <button id="prov-save-anthropic-key" style="padding: 4px 10px; background: #007acc; color: white; border: none; cursor: pointer;">Save Key & Test Connection</button>
+                    <div id="prov-test-anthropic-res" style="margin-top: 10px; font-size: 12px;"></div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-size: 12px; margin-bottom: 5px; color: #ccc;">Google Gemini API Key</label>
+                    <input id="prov-gemini-key" type="password" placeholder="AIza..." style="width: 100%; padding: 5px; background: #333; color: white; border: 1px solid #555; margin-bottom: 10px;" />
+                    <button id="prov-save-gemini-key" style="padding: 4px 10px; background: #007acc; color: white; border: none; cursor: pointer;">Save Key & Test Connection</button>
+                    <div id="prov-test-gemini-res" style="margin-top: 10px; font-size: 12px;"></div>
+                </div>
             </div>
         `;
 
@@ -101,32 +118,38 @@ export class ProviderSettingsWidget extends BaseWidget {
             this.loadData();
         });
 
-        const saveKeyBtn = this.container.querySelector('#prov-save-key') as HTMLButtonElement;
-        saveKeyBtn.addEventListener('click', async () => {
-            const keyInput = this.container.querySelector('#prov-openai-key') as HTMLInputElement;
-            const key = keyInput.value.trim();
-            if (!key) return;
+        const setupConnectionTest = (providerId: string, providerName: string, btnId: string, inputId: string, resId: string) => {
+            const saveKeyBtn = this.container.querySelector(`#${btnId}`) as HTMLButtonElement;
+            saveKeyBtn.addEventListener('click', async () => {
+                const keyInput = this.container.querySelector(`#${inputId}`) as HTMLInputElement;
+                const key = keyInput.value.trim();
+                if (!key) return;
 
-            saveKeyBtn.disabled = true;
-            saveKeyBtn.innerText = 'Testing...';
-            const resDiv = this.container.querySelector('#prov-test-res')!;
+                saveKeyBtn.disabled = true;
+                saveKeyBtn.innerText = 'Testing...';
+                const resDiv = this.container.querySelector(`#${resId}`)!;
 
-            try {
-                await this.registry.setCredentials({ providerId: 'openai-provider', apiKey: key });
-                const status = await this.registry.checkConnection('openai-provider');
+                try {
+                    await this.registry.setCredentials({ providerId, apiKey: key });
+                    const status = await this.registry.checkConnection(providerId);
 
-                if (status.connected) {
-                    resDiv.innerHTML = `<span style="color: #4CAF50;">Successfully connected to OpenAI!</span>`;
-                    keyInput.value = '';
-                } else {
-                    resDiv.innerHTML = `<span style="color: #ff5555;">Connection failed: ${status.error}</span>`;
+                    if (status.connected) {
+                        resDiv.innerHTML = `<span style="color: #4CAF50;">Successfully connected to ${providerName}!</span>`;
+                        keyInput.value = '';
+                    } else {
+                        resDiv.innerHTML = `<span style="color: #ff5555;">Connection failed: ${status.error}</span>`;
+                    }
+                } catch (err) {
+                    resDiv.innerHTML = `<span style="color: #ff5555;">Error: ${String(err)}</span>`;
+                } finally {
+                    saveKeyBtn.disabled = false;
+                    saveKeyBtn.innerText = 'Save Key & Test Connection';
                 }
-            } catch (err) {
-                resDiv.innerHTML = `<span style="color: #ff5555;">Error: ${String(err)}</span>`;
-            } finally {
-                saveKeyBtn.disabled = false;
-                saveKeyBtn.innerText = 'Save Key & Test Connection';
-            }
-        });
+            });
+        };
+
+        setupConnectionTest('openai-provider', 'OpenAI', 'prov-save-openai-key', 'prov-openai-key', 'prov-test-openai-res');
+        setupConnectionTest('anthropic-provider', 'Anthropic', 'prov-save-anthropic-key', 'prov-anthropic-key', 'prov-test-anthropic-res');
+        setupConnectionTest('gemini-provider', 'Google Gemini', 'prov-save-gemini-key', 'prov-gemini-key', 'prov-test-gemini-res');
     }
 }
