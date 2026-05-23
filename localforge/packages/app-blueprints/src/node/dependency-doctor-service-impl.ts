@@ -4,6 +4,7 @@ import { URI } from '@theia/core';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import fetch from 'cross-fetch';
 import {
     DependencyDoctorService,
     PreviewService,
@@ -117,11 +118,79 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
         for (const log of input.logs) {
             await this.processLogLine(log.message);
         }
+
+        // Run OSV Supply Chain Scan
+        await this.runOsvScan(input.workspaceRootUri);
+
         const issues = this.activeIssues.get('default') || [];
         return {
             issues,
             timestamp: Date.now()
         };
+    }
+
+    private async runOsvScan(workspaceRootUriStr: string) {
+        const rootUri = new URI(workspaceRootUriStr);
+        const packageJsonPath = path.join(rootUri.path.toString(), 'apps', 'web', 'package.json');
+
+        if (!fs.existsSync(packageJsonPath)) return;
+
+        try {
+            const pkgData = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+            const deps = { ...pkgData.dependencies, ...pkgData.devDependencies };
+
+            const queries = Object.keys(deps).map(pkgName => {
+                let version = deps[pkgName];
+                version = version.replace(/^[\^~]/, ''); // Strip semver prefix
+                return {
+                    package: { name: pkgName, ecosystem: 'npm' },
+                    version: version
+                };
+            });
+
+            // OSV Batch Query API
+            const response = await fetch('https://api.osv.dev/v1/querybatch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ queries })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const existing = this.activeIssues.get('default') || [];
+
+                data.results?.forEach((result: any, index: number) => {
+                    if (result.vulns && result.vulns.length > 0) {
+                        const pkgName = queries[index].package.name;
+                        const vuln = result.vulns[0];
+                        const issueId = `err_osv_${pkgName}_${vuln.id}`;
+
+                        if (!existing.find(e => e.id === issueId)) {
+                            existing.push({
+                                id: issueId,
+                                severity: 'critical',
+                                rawLog: `OSV Scan detected vulnerability in ${pkgName}`,
+                                issueSummary: `Vulnerable Dependency: ${pkgName} (${vuln.id})`,
+                                explanation: vuln.summary || `A vulnerability was found in the ${pkgName} package.`,
+                                likelyCause: `The version of ${pkgName} in your package.json is known to be vulnerable.`,
+                                suggestedFix: `Upgrade ${pkgName} to a secure version based on the OSV advisory.`,
+                                confidenceScore: 1.0,
+                                action: {
+                                    type: 'human_action_required',
+                                    description: `Upgrade ${pkgName} to fix ${vuln.id}`,
+                                    isSafeAutoFix: false
+                                }
+                            });
+                        }
+                    }
+                });
+
+                this.activeIssues.set('default', existing);
+                this.onIssuesUpdatedEmitter.fire(existing);
+            }
+        } catch (e) {
+            console.error('OSV Scan failed:', e);
+        }
     }
 
     public async listActiveIssues(workspaceRootUriStr: string): Promise<DetectedIssue[]> {

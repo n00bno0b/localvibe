@@ -89,6 +89,35 @@ export class AICodegenServiceImpl implements AICodegenService {
         return plan;
     }
 
+    private runSemgrepSecurityScan(patch: GeneratedPatch): string[] {
+        const detectedRisks: string[] = [];
+
+        for (const file of patch.files) {
+            if (file.action === 'create' || file.action === 'modify') {
+                const content = file.after || '';
+
+                // Stub: AST Pattern Matcher (Semgrep Equivalent)
+                if (content.match(/SELECT \* FROM .* WHERE .* = \$/)) { // Naive interpolation check
+                    // Ignore parameterization in naive check, looking for concat
+                }
+
+                if (content.match(/`SELECT .* FROM .* WHERE .* = \${.*}`/)) {
+                    detectedRisks.push(`[AVR-SAST] Potential SQL Injection detected in ${file.path}. Use parameterized queries.`);
+                }
+
+                if (content.match(/['"]sk-[a-zA-Z0-9]{32,}['"]/)) {
+                    detectedRisks.push(`[AVR-SAST] Hardcoded API secret detected in ${file.path}. Use environment variables.`);
+                }
+
+                if (content.includes('eval(')) {
+                    detectedRisks.push(`[AVR-SAST] Dangerous use of eval() detected in ${file.path}.`);
+                }
+            }
+        }
+
+        return detectedRisks;
+    }
+
     public async generatePatch(planId: string): Promise<GeneratedPatch> {
         const plan = this.plans.get(planId);
         if (!plan) throw new Error('Plan not found');
@@ -98,25 +127,58 @@ export class AICodegenServiceImpl implements AICodegenService {
 
         const systemPrompt = CodegenPromptBuilder.buildSystemPrompt(rootPath, plan.request.appPath, plan.contextGathered);
 
-        const requestPayload = {
-            sessionId: `codegen_${planId}`,
-            messages: [
-                { role: 'system' as const, content: systemPrompt },
-                { role: 'user' as const, content: plan.request.userPrompt }
-            ]
-        };
+        let maxAttempts = 3;
+        let attempt = 0;
+        let patch: GeneratedPatch | null = null;
+        let lastError = '';
 
-        let rawResponse = '';
-        try {
-            // Forward request to AI Provider Registry
-            rawResponse = await this.aiRegistry.chat(requestPayload);
-        } catch (error) {
-            console.error("Provider failed. Trying Mock fallback...", error);
-            // Fallback to mock provider explicitly if connection/runtime isn't ready
-            rawResponse = await this.aiRegistry.chat(requestPayload, 'mock-provider');
+        while (attempt < maxAttempts) {
+            attempt++;
+
+            let prompt = plan.request.userPrompt;
+            if (lastError) {
+                prompt += `\n\n[AVR System Feedback]: The previous generation failed security checks: ${lastError}\nPlease regenerate the code and fix these vulnerabilities using safe patterns (e.g. parameterized queries, env vars).`;
+            }
+
+            const requestPayload = {
+                sessionId: `codegen_${planId}_${attempt}`,
+                messages: [
+                    { role: 'system' as const, content: systemPrompt },
+                    { role: 'user' as const, content: prompt }
+                ]
+            };
+
+            let rawResponse = '';
+            try {
+                // Forward request to AI Provider Registry
+                rawResponse = await this.aiRegistry.chat(requestPayload);
+            } catch (error) {
+                console.error("Provider failed. Trying Mock fallback...", error);
+                // Fallback to mock provider explicitly if connection/runtime isn't ready
+                rawResponse = await this.aiRegistry.chat(requestPayload, 'mock-provider');
+            }
+
+            patch = CodegenPromptBuilder.parseJsonPatch(rawResponse);
+
+            // Phase 5 Code-Level Layer: Local Static Analysis (AST/Semgrep Stub)
+            const securityViolations = this.runSemgrepSecurityScan(patch);
+
+            if (securityViolations.length === 0) {
+                break; // Safe, exit loop
+            } else {
+                console.warn(`[AVR] Generation failed static analysis on attempt ${attempt}:`, securityViolations);
+                lastError = securityViolations.join('; ');
+                patch = null;
+
+                // Mock provider won't fix itself, so we break immediately if we're using it to avoid infinite looping
+                if (rawResponse.includes('MOCK_PATCH')) break;
+            }
         }
 
-        const patch = CodegenPromptBuilder.parseJsonPatch(rawResponse);
+        if (!patch) {
+            throw new Error(`Failed to generate secure code after ${maxAttempts} attempts. Violations: ${lastError}`);
+        }
+
         this.patches.set(patch.id, patch);
 
         return patch;
