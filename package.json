@@ -128,5 +128,8 @@
     "vscode.github",
     "vscode.github-authentication",
     "ms-python.vscode-pylance"
-  ]
+  ],
+  "dependencies": {
+    "cross-fetch": "^4.1.0"
+  }
 }

@@ -59,6 +59,30 @@ export class PreviewServiceImpl implements PreviewService, BackendApplicationCon
         };
     }
 
+    public async simulateProxyCustomerE2ETest(workspaceRootUriStr: string): Promise<void> {
+        // Stub implementation for Phase 6: The Proxy Customer
+        this.emitLog('system', 'Starting background Proxy Customer E2E test run...');
+
+        if (this.state !== 'running') {
+            this.emitLog('system', '[E2E] Aborted: Live Preview server is not running.');
+            return;
+        }
+
+        setTimeout(() => {
+            this.emitLog('system', '[E2E] Proxy Customer visiting http://localhost:3000/ ...');
+        }, 1000);
+
+        setTimeout(() => {
+            this.emitLog('system', '[E2E] Proxy Customer navigating to /auth/login ...');
+        }, 2500);
+
+        setTimeout(() => {
+            this.emitLog('system', '[E2E] Proxy Customer submitting login form...');
+            // Simulate a crash/error that the DependencyDoctor will catch
+            this.emitLog('stderr', '[E2E] Test failed: Expected element <button id="submit"> to be visible, but it was hidden. Checkout form inaccessible.');
+        }, 4000);
+    }
+
     public async startPreview(workspaceRootUriStr: string): Promise<void> {
         if (this.currentProcess) {
             this.emitLog('system', 'Preview already active. Use restart.');

@@ -87,3 +87,9 @@ The Alpha establishes that the entire pipeline can execute securely and locally.
 - **Beta Phase 3 — Context Vector Indexer:** Add a lightweight local database (SQLite-vss or similar) so the Local Brain can semantically search the entire Next.js codebase, rather than relying on deterministic context gathering in the `CodegenPromptBuilder`.
 - **Beta Phase 4 — Provider Hub / Cloud Assist Integration:** Finalize the cloud subscription and BYOK integrations. Added a "LocalForge Account" flow to enable users to use a managed cloud LLM if their local machine struggles to run heavier models. Added BYOK functionality for OpenAI, Anthropic (Claude), and Google (Gemini) cloud providers.
 - **Beta Phase 5 — Security-First Architecture (AVR):** Embed Automated Vulnerability Repair (AVR) patterns natively into LocalForge. This includes integrating Google's Open Source Vulnerabilities (OSV) database for supply chain checks, utilizing local static analysis (e.g., Semgrep) for secure code generation, and implementing log-driven dynamic repair mechanics via the Live Preview container logs.
+- **Beta Phase 6 — Hyper-Automation (Native OS capabilities):** Expand LocalForge into a boundary-pushing platform leveraging native desktop capabilities:
+  - **Local Time-Machine:** Speculative filesystem branching that auto-reverts failed AI generated patches if they cause compile errors.
+  - **Dynamic Component Hot-Shotting:** Visual canvas injection for editing code by interacting physically with the Live Preview webview.
+  - **The Proxy Customer:** Autonomous E2E testing agents that simulate user flows and pipe crashes directly into the Dependency Doctor.
+  - **MCP Server Hub:** Model Context Protocol integration to give local brains access to external DBs and system tools safely.
+  - **ForgeOps Bundler:** Automated containerization and deployment script scaffolding when the project enters `launch-prep` phase.

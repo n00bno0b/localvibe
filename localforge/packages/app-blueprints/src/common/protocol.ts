@@ -220,11 +220,13 @@ export type ProjectPhase =
   | 'dependency-fix'
   | 'security-pass'
   | 'launch-prep'
+  | 'forgeops-bundle'
+  | 'e2e-testing'
   | 'deployment'
   | 'feedback'
   | 'iteration';
 
-export type TaskOwner = 'human' | 'forge-conductor' | 'forge-scout' | 'codegen' | 'dependency-doctor' | 'project-generator' | 'live-preview' | 'forgeops';
+export type TaskOwner = 'human' | 'forge-conductor' | 'forge-scout' | 'codegen' | 'dependency-doctor' | 'project-generator' | 'live-preview' | 'forgeops' | 'proxy-customer';
 
 export interface ProjectTask {
   id: string;
@@ -269,10 +271,36 @@ export interface UserPreferences {
     explanationDepth: 'quick' | 'standard' | 'deep';
 }
 
+export interface ForgeOpsReport {
+    timestamp: number;
+    targetEnvironment: string;
+    containerizationStatus: 'not_started' | 'generating' | 'completed' | 'failed';
+    deploymentScriptsGenerated: string[];
+    warnings: string[];
+    humanActionsRequired: string[];
+}
+
+export interface SpeculativeBranch {
+    branchId: string;
+    baseCommitId?: string;
+    status: 'active' | 'evaluating' | 'fast-forwarded' | 'aborted';
+    errorTrace?: string;
+}
+
+export interface SecurityPosture {
+    openScaVulnerabilities: number;
+    sastViolationsDetected: number;
+    unresolvedSanitizerCrashes: number;
+}
+
 export interface ProjectState {
     phase: ProjectPhase;
     health: 'healthy' | 'warning' | 'critical';
     lastCompletedTaskId?: string;
+    securityPosture?: SecurityPosture;
+    nextRecommendedActions?: RecommendedAction[];
+    lastForgeOpsReport?: ForgeOpsReport;
+    activeSpeculativeBranch?: SpeculativeBranch;
 }
 
 export interface ProjectStateUpdate {
@@ -280,6 +308,10 @@ export interface ProjectStateUpdate {
     phase?: ProjectPhase;
     health?: 'healthy' | 'warning' | 'critical';
     lastCompletedTaskId?: string;
+    securityPosture?: SecurityPosture;
+    nextRecommendedActions?: RecommendedAction[];
+    lastForgeOpsReport?: ForgeOpsReport;
+    activeSpeculativeBranch?: SpeculativeBranch;
 }
 
 export interface TaskEvent {

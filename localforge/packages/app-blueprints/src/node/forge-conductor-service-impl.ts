@@ -56,13 +56,77 @@ export class ForgeConductorServiceImpl implements ForgeConductorService {
         return this.readFile<ProjectState>(dir, 'project-state.json', { phase: 'idea', health: 'healthy' });
     }
 
+    private async triggerForgeOpsBundler(workspaceRootUriStr: string, dir: string) {
+        // Implementation for Phase 6 ForgeOps Bundler
+        const rootUri = new URI(workspaceRootUriStr);
+        const rootPath = rootUri.path.toString();
+
+        const dockerfileContent = `
+# ForgeOps Auto-Generated Dockerfile
+FROM node:18-alpine AS base
+
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+COPY apps/web/package.json apps/web/package-lock.json* ./
+RUN npm ci
+
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY apps/web .
+RUN npm run build
+
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV production
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+EXPOSE 3000
+ENV PORT 3000
+CMD ["node", "server.js"]
+`;
+
+        const dockerfilePath = path.join(rootPath, 'apps', 'web', 'Dockerfile');
+        if (!fs.existsSync(path.dirname(dockerfilePath))) {
+            fs.mkdirSync(path.dirname(dockerfilePath), { recursive: true });
+        }
+        fs.writeFileSync(dockerfilePath, dockerfileContent, 'utf8');
+
+        await this.addHumanAction(workspaceRootUriStr, {
+            id: `deploy_script_${Date.now()}`,
+            description: "Deploy Application Container",
+            reason: "The ForgeOps Bundler has generated a Dockerfile. Run `docker build` and push to your cloud provider.",
+            status: 'pending',
+            createdAt: Date.now()
+        });
+
+        await this.updateProjectState({
+            workspaceRootUri: workspaceRootUriStr,
+            lastForgeOpsReport: {
+                timestamp: Date.now(),
+                targetEnvironment: 'docker-container',
+                containerizationStatus: 'completed',
+                deploymentScriptsGenerated: ['apps/web/Dockerfile'],
+                warnings: ['Ensure environment variables are set in your deployment environment.'],
+                humanActionsRequired: ['Deploy Application Container']
+            }
+        });
+    }
+
     public async updateProjectState(update: ProjectStateUpdate): Promise<ProjectState> {
         const dir = this.getDir(update.workspaceRootUri);
         const state = await this.getProjectState(update.workspaceRootUri);
 
+        const oldPhase = state.phase;
+
         if (update.phase) state.phase = update.phase;
         if (update.health) state.health = update.health;
         if (update.lastCompletedTaskId) state.lastCompletedTaskId = update.lastCompletedTaskId;
+        if (update.lastForgeOpsReport) state.lastForgeOpsReport = update.lastForgeOpsReport;
+        if (update.activeSpeculativeBranch) state.activeSpeculativeBranch = update.activeSpeculativeBranch;
 
         this.writeFile(dir, 'project-state.json', state);
 
@@ -70,7 +134,15 @@ export class ForgeConductorServiceImpl implements ForgeConductorService {
         if (!fs.existsSync(progressMd)) {
             fs.writeFileSync(progressMd, '# Project Progress\n\n', 'utf8');
         }
-        this.appendMarkdown(dir, 'progress.md', `- [${new Date().toISOString()}] Phase changed to **${state.phase}**. Health: ${state.health}`);
+
+        if (oldPhase !== state.phase) {
+            this.appendMarkdown(dir, 'progress.md', `- [${new Date().toISOString()}] Phase changed to **${state.phase}**. Health: ${state.health}`);
+
+            // Hook for ForgeOps
+            if (state.phase === 'launch-prep' || state.phase === 'forgeops-bundle') {
+                await this.triggerForgeOpsBundler(update.workspaceRootUri, dir);
+            }
+        }
 
         return state;
     }
@@ -240,6 +312,15 @@ export class ForgeConductorServiceImpl implements ForgeConductorService {
                     title: 'Propose AI Code Change',
                     description: 'Ask Local Brain to add a new feature or component.',
                     delegationId: 'delegate_open_chat'
+                });
+                break;
+            case 'launch-prep':
+            case 'forgeops-bundle':
+                recommendations.push({
+                    id: 'review_forgeops',
+                    title: 'Review Deployment Bundles',
+                    description: 'ForgeOps has containerized your app. Review the Dockerfile and deploy.',
+                    isHumanAction: true
                 });
                 break;
             default:

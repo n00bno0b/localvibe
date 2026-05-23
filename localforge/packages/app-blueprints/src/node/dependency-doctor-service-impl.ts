@@ -82,6 +82,27 @@ export class DependencyDoctorServiceImpl implements DependencyDoctorService {
             };
         }
 
+        // Phase 6: Proxy Customer Stub / Playwright E2E Error interception
+        const e2eMatch = line.match(/\[E2E\] Test failed: (.*)/);
+        if (e2eMatch && !newIssue) {
+            newIssue = {
+                id: `err_e2e_${Date.now()}`,
+                severity: 'critical',
+                rawLog: line,
+                issueSummary: `Proxy Customer E2E Failure`,
+                explanation: `The background Proxy Customer encountered an error simulating a user flow: ${e2eMatch[1]}`,
+                likelyCause: `A UI component is misconfigured or an API endpoint is failing.`,
+                suggestedFix: `Review the proposed Codegen patch to fix the broken component.`,
+                confidenceScore: 0.98,
+                action: {
+                    type: 'human_action_required',
+                    payload: {},
+                    description: `Review E2E fix patch`,
+                    isSafeAutoFix: false
+                }
+            };
+        }
+
         // Fallback: Local Brain interpretation stub
         if (!newIssue && (line.toLowerCase().includes('error:') || line.toLowerCase().includes('exception'))) {
             const existing = this.activeIssues.get(defaultWorkspacePath) || [];

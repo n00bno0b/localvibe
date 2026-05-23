@@ -1,5 +1,5 @@
-import { ProjectIndexerService } from '../common/protocol';
-import { injectable, inject } from '@theia/core/shared/inversify';
+import { ProjectIndexerService, ForgeConductorService, PreviewService } from '../common/protocol';
+import { injectable, inject, optional } from '@theia/core/shared/inversify';
 import * as fs from 'fs';
 import * as path from 'path';
 import { URI } from '@theia/core';
@@ -21,6 +21,12 @@ export class AICodegenServiceImpl implements AICodegenService {
 
     @inject(ProjectIndexerService)
     protected readonly indexerService!: ProjectIndexerService;
+
+    @inject(ForgeConductorService) @optional()
+    protected readonly conductorService?: ForgeConductorService;
+
+    @inject(PreviewService) @optional()
+    protected readonly previewService?: PreviewService;
 
     private plans = new Map<string, CodegenPlan>();
     private patches = new Map<string, GeneratedPatch>();
@@ -190,9 +196,38 @@ export class AICodegenServiceImpl implements AICodegenService {
 
         // We fallback to cwd if we can't reliably resolve the plan, but in a real system patch objects
         // should carry their workspace root URI directly.
+        const rootUriStr = new URI(process.cwd()).toString();
         const rootPath = new URI(process.cwd()).path.toString();
 
         let filesModified = 0;
+
+        // 1. Local Time-Machine: Create Backup state
+        const backupMap = new Map<string, string | null>(); // path -> content (null means file didn't exist)
+
+        try {
+            for (const file of patch.files) {
+                const fullPath = path.join(rootPath, file.path);
+                if (fs.existsSync(fullPath)) {
+                    backupMap.set(fullPath, fs.readFileSync(fullPath, 'utf8'));
+                } else {
+                    backupMap.set(fullPath, null);
+                }
+            }
+        } catch(e) {
+             return { success: false, filesModified: 0, error: `Failed to create backup snapshot: ${e}` };
+        }
+
+        // Mark State
+        const branchId = `speculative_${Date.now()}`;
+        if (this.conductorService) {
+            await this.conductorService.updateProjectState({
+                workspaceRootUri: rootUriStr,
+                activeSpeculativeBranch: {
+                    branchId,
+                    status: 'active'
+                }
+            });
+        }
 
         try {
             for (const file of patch.files) {
@@ -228,12 +263,55 @@ export class AICodegenServiceImpl implements AICodegenService {
                 }
             }
 
+            // 2. Speculative Evaluation: Try restarting preview
+            if (this.conductorService && this.previewService) {
+                await this.conductorService.updateProjectState({
+                    workspaceRootUri: rootUriStr,
+                    activeSpeculativeBranch: { branchId, status: 'evaluating' }
+                });
+
+                let previewStatus = await this.previewService.getStatus();
+                if (previewStatus.state === 'running' || previewStatus.state === 'crashed') {
+                   await this.previewService.restartPreview(rootUriStr);
+                   // Wait a short moment to let process boot and catch obvious syntax errors
+                   await new Promise(r => setTimeout(r, 4000));
+
+                   previewStatus = await this.previewService.getStatus();
+                   if (previewStatus.state === 'crashed') {
+                       throw new Error(`Speculative build failed. Preview server crashed: ${previewStatus.message}`);
+                   }
+                }
+
+                // 3. Fast-forward
+                await this.conductorService.updateProjectState({
+                    workspaceRootUri: rootUriStr,
+                    activeSpeculativeBranch: { branchId, status: 'fast-forwarded' }
+                });
+            }
+
             this.updateProjectState(rootPath, patch.summary, patch.risks[0]);
             this.patches.delete(patchId);
 
             return { success: true, filesModified };
         } catch (e) {
-            return { success: false, filesModified, error: String(e) };
+            // Rollback files
+            console.error(`Speculative apply failed, rolling back branch ${branchId}...`, e);
+            for (const [fullPath, content] of backupMap.entries()) {
+                if (content === null) {
+                    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+                } else {
+                    fs.writeFileSync(fullPath, content, 'utf8');
+                }
+            }
+
+            if (this.conductorService) {
+                await this.conductorService.updateProjectState({
+                    workspaceRootUri: rootUriStr,
+                    activeSpeculativeBranch: { branchId, status: 'aborted', errorTrace: String(e) }
+                });
+            }
+
+            return { success: false, filesModified: 0, error: `Speculative build failed in the background. Aborting edit before disk pollution occurred. Here is what broke:\n\n${String(e)}` };
         }
     }
 
